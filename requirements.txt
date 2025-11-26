@@ -1,0 +1,12 @@
+# Core dependencies
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
+tkinterdnd2>=0.4.0
+
+# Testing dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+
+# Optional: For packaging/distribution
+# pyinstaller>=6.0.0
