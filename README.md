@@ -4,6 +4,12 @@
 
 A professional-grade GUI application for creating datamosh glitch effects by manipulating I-frames and P-frames in video files. Built with Python and Tkinter.
 
+## Support
+
+Most of my work stays free and open-source.
+Support early access, live sessions, and workshop-time:
+https://www.patreon.com/Seriousshit
+
 ---
 
 ## Features
