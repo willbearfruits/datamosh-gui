@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 
 ## [Unreleased] - 2026-02-17
 
+### Added
+- In-app update checker wired to GitHub Releases (`Update` toolbar action).
+- Version file and runtime version helpers (`VERSION`, `gui/version.py`).
+- Release docs (`RELEASES.md`).
+- Update checker tests (`tests/test_update_checker.py`).
+
+### Release Engineering
+- Added automated cross-platform release workflow:
+  - `.github/workflows/release.yml`
+- Added Linux `.deb` packager script:
+  - `packaging/linux/build_deb.sh`
+- Added Windows installer script (Inno Setup):
+  - `packaging/windows/datamosh.iss`
+- Release artifacts now target portable + installer outputs for Linux/Windows/macOS.
+
 ### Documentation
 - Rewrote `README.md` for the current PySide6 timeline workflow.
 - Updated `BUILD_INSTRUCTIONS.md` to package from `main.py` (removed legacy Tkinter build paths).

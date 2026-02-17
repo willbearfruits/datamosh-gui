@@ -52,6 +52,14 @@ Or use:
 ./launch.sh
 ```
 
+## Releases
+
+Automated tagged releases include portable and installer packages for Linux, Windows, and macOS.
+
+- Release pipeline: `.github/workflows/release.yml`
+- Packaging details: `RELEASES.md`
+- In-app update check: toolbar action `Update`
+
 ## Workflow (GUI)
 
 1. Open one or more source clips.

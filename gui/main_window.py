@@ -1,8 +1,10 @@
 """Main window with splitter-based layout."""
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QMainWindow,
+    QMessageBox,
     QSplitter,
     QStatusBar,
     QVBoxLayout,
@@ -15,6 +17,8 @@ from gui.widgets.settings_panel import SettingsPanel
 from gui.widgets.timeline_widget import TimelineWidget
 from gui.widgets.toolbar import Toolbar
 from gui.models.project import Project
+from gui.version import REPOSITORY, get_version, release_channel
+from gui.workers.update_worker import UpdateWorker
 
 
 class MainWindow(QMainWindow):
@@ -24,11 +28,12 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Datamosh")
+        self.setWindowTitle(f"Datamosh {get_version()}")
         self.setMinimumSize(1000, 650)
         self.resize(1280, 800)
 
         self.project = Project()
+        self._update_worker: UpdateWorker | None = None
 
         self._build_ui()
         self._connect_signals()
@@ -97,6 +102,7 @@ class MainWindow(QMainWindow):
         self.toolbar.render_clicked.connect(self._on_render)
         self.toolbar.undo_clicked.connect(self._on_undo)
         self.toolbar.redo_clicked.connect(self._on_redo)
+        self.toolbar.update_clicked.connect(self._check_updates)
         self.toolbar.help_clicked.connect(self._show_shortcuts)
         self.files_dropped.connect(self.clip_panel.add_files)
 
@@ -150,6 +156,59 @@ class MainWindow(QMainWindow):
     def _on_redo(self) -> None:
         if self.project.redo():
             self.set_status("Redo", 1500)
+
+    def _check_updates(self) -> None:
+        if self._update_worker and self._update_worker.isRunning():
+            self.set_status("Update check already in progress...", 1500)
+            return
+
+        self.set_status("Checking for updates...")
+        self._update_worker = UpdateWorker(
+            current_version=get_version(),
+            repository=REPOSITORY,
+            channel=release_channel(),
+            parent=self,
+        )
+        self._update_worker.finished_ok.connect(self._on_update_result)
+        self._update_worker.finished.connect(self._update_worker.deleteLater)
+        self._update_worker.start()
+
+    def _on_update_result(self, result) -> None:
+        self._update_worker = None
+
+        if result.error:
+            self.set_status("Update check failed", 2000)
+            QMessageBox.warning(self, "Update Check", f"Could not check updates:\n{result.error}")
+            return
+
+        if not result.has_update:
+            self.set_status("You are on the latest version", 2000)
+            QMessageBox.information(
+                self,
+                "Update Check",
+                f"No updates available.\nCurrent version: {result.current_version}",
+            )
+            return
+
+        latest = result.latest
+        if latest is None:
+            return
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Update Available")
+        box.setText(f"A new version is available: {latest.version}")
+        box.setInformativeText(
+            f"Current: {result.current_version}\n"
+            f"Latest: {latest.version}\n\n"
+            "Open the download page now?"
+        )
+        open_btn = box.addButton("Open Download", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Later", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+
+        if box.clickedButton() == open_btn:
+            QDesktopServices.openUrl(QUrl(latest.download_url))
 
     def set_status(self, msg: str, timeout: int = 0) -> None:
         self.status_bar.showMessage(msg, timeout)

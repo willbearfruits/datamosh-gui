@@ -85,3 +85,11 @@ pip install pyinstaller
 QT_QPA_PLATFORM=offscreen pytest -q
 pyinstaller --noconfirm --clean --windowed --name Datamosh main.py
 ```
+
+## Automated Tagged Releases
+
+Cross-platform release packaging is automated in:
+
+- `.github/workflows/release.yml`
+
+Push a tag like `v1.2.0` or `v1.2.0-beta.1` to build and publish release assets automatically.

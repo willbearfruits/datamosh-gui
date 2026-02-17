@@ -11,6 +11,7 @@ class Toolbar(QToolBar):
     render_clicked = Signal()
     undo_clicked = Signal()
     redo_clicked = Signal()
+    update_clicked = Signal()
     help_clicked = Signal()
 
     def __init__(self, parent=None) -> None:
@@ -47,6 +48,13 @@ class Toolbar(QToolBar):
         self._redo.setEnabled(False)
         self._redo.triggered.connect(self.redo_clicked)
         self.addAction(self._redo)
+
+        self.addSeparator()
+
+        self._update = QAction("Update", self)
+        self._update.setToolTip("Check for app updates")
+        self._update.triggered.connect(self.update_clicked)
+        self.addAction(self._update)
 
         self.addSeparator()
 

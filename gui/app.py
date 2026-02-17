@@ -5,6 +5,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from gui.theme import STYLESHEET, make_dark_palette
+from gui.version import get_version
 
 
 def create_app(argv: list[str] | None = None) -> QApplication:
@@ -13,6 +14,7 @@ def create_app(argv: list[str] | None = None) -> QApplication:
         argv = sys.argv
     app = QApplication(argv)
     app.setApplicationName("Datamosh")
+    app.setApplicationVersion(get_version())
     app.setOrganizationName("datamosh")
     app.setStyle("Fusion")
     app.setPalette(make_dark_palette())
