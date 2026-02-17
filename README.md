@@ -7,6 +7,16 @@ Interactive timeline-based datamoshing for clip-level I-frame and P-frame manipu
 If this project helps your workflow, support ongoing development and experiments:
 https://www.patreon.com/Seriousshit
 
+## Preview
+
+Screenshot:
+
+![Datamosh GUI timeline preview](assets/showcase/ui-preview.png)
+
+Sample output video:
+
+[Download example clip (AVI)](assets/showcase/example-1.avi)
+
 ## What This App Does
 
 Datamosh GUI is a PySide6 desktop editor built for experimental compression-art workflows.
