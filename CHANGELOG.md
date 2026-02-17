@@ -21,6 +21,7 @@ All notable changes to this project are documented here.
 - Added polished release body template with showcase media:
   - `RELEASE_BODY.md`
 - Publish job now runs with partial artifacts when one platform build fails.
+- Fixed release publish job to checkout repository before applying `RELEASE_BODY.md`.
 
 ### Documentation
 - Rewrote `README.md` for the current PySide6 timeline workflow.
