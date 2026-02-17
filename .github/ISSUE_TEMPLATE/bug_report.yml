@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a reproducible bug in Datamosh GUI
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken?
+      placeholder: Timeline playback stops after first segment...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Exact step-by-step sequence.
+      placeholder: |
+        1. Open app
+        2. Add two clips
+        3. Cut first clip at frame 30
+        4. Press play
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Commit / Version
+      description: Git commit hash or release tag
+      placeholder: 26e1f5c
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Python version, ffmpeg/ffprobe versions
+      placeholder: |
+        OS: Ubuntu 24.04
+        Python: 3.11
+        ffmpeg: 6.x

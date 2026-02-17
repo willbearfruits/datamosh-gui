@@ -1,129 +1,65 @@
-# Datamosh GUI Test Suite
+# Test Suite
 
-Automated test suite for the Datamosh GUI application.
+Automated tests for the current PySide6 Datamosh GUI and core AVI engine.
 
-## Setup
-
-Install test dependencies:
+## Install
 
 ```bash
-pip install pytest pytest-cov pytest-mock
+pip install -r requirements.txt
 ```
 
-## Running Tests
+## Run
 
-Run all tests:
+Full suite (recommended in headless shells/CI):
+
+```bash
+QT_QPA_PLATFORM=offscreen pytest -q
+```
+
+Run all tests with default config:
+
 ```bash
 pytest
 ```
 
-Run with coverage:
+Run a single file:
+
 ```bash
-pytest --cov=. --cov-report=html
+pytest tests/test_timeline_project.py
 ```
 
-Run specific test file:
+Run by keyword:
+
 ```bash
-pytest tests/test_mosh.py
+pytest -k "timeline"
 ```
 
-Run tests matching a pattern:
-```bash
-pytest -k "test_parse"
-```
+## Markers
 
-Run with verbose output:
-```bash
-pytest -v
-```
+Defined in `pytest.ini`:
 
-## Test Markers
+- `integration`: tests that may require real video assets
+- `gui`: Qt/UI tests
+- `slow`: longer-running tests
 
-Tests are organized with markers:
+Examples:
 
-- `@pytest.mark.integration` - Integration tests requiring video files
-- `@pytest.mark.gui` - GUI tests requiring a display
-- `@pytest.mark.slow` - Slow tests (>1 second)
-
-Run only unit tests (skip integration):
 ```bash
 pytest -m "not integration"
+pytest -m gui
 ```
 
-Run only integration tests:
-```bash
-pytest -m integration
-```
+## Current Test Files
 
-## Test Structure
-
-```
-tests/
-├── __init__.py           # Test package init
-├── conftest.py           # Shared fixtures and configuration
-├── test_mosh.py          # Core engine tests
-├── test_video_preview.py # Video preview widget tests
-├── test_shortcuts.py     # Keyboard shortcut tests
-└── README.md            # This file
-```
-
-## Adding Tests
-
-When adding new features:
-
-1. Create test file: `tests/test_<module>.py`
-2. Add test class: `class Test<Feature>:`
-3. Add test methods: `def test_<specific_behavior>:`
-4. Use fixtures from `conftest.py` for common setup
-
-Example:
-```python
-def test_new_feature(temp_dir, mock_ffmpeg):
-    """Test description."""
-    # Arrange
-    setup_code()
-
-    # Act
-    result = function_under_test()
-
-    # Assert
-    assert result == expected
-```
-
-## Coverage
-
-Target: 70%+ code coverage
-
-View coverage report:
-```bash
-pytest --cov=. --cov-report=html
-open htmlcov/index.html
-```
-
-## CI/CD Integration
-
-To integrate with CI/CD:
-
-```yaml
-# .github/workflows/test.yml (example)
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: '3.10'
-      - run: pip install -r requirements.txt
-      - run: pip install pytest pytest-cov
-      - run: pytest --cov=. --cov-report=xml
-      - uses: codecov/codecov-action@v2
-```
+- `tests/test_clip_model.py`
+- `tests/test_mosh.py`
+- `tests/test_mosh_worker.py`
+- `tests/test_project.py`
+- `tests/test_timeline_duration.py`
+- `tests/test_timeline_project.py`
+- `tests/conftest.py`
 
 ## Notes
 
-- GUI tests may be skipped in headless environments
-- Integration tests require sample video files in `tests/fixtures/`
-- Mock ffmpeg for unit tests to avoid external dependencies
+- `legacy/` tests are historical and are not part of default test discovery.
+- If Qt crashes in headless environments, set `QT_QPA_PLATFORM=offscreen`.
