@@ -157,6 +157,7 @@ jobs:
   publish:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
+    if: ${{ always() }}
     needs:
       - build-linux
       - build-windows
@@ -169,9 +170,24 @@ jobs:
           path: release-artifacts
           merge-multiple: true
 
+      - name: List collected artifacts
+        run: |
+          ls -lah release-artifacts || true
+
+      - name: Check artifacts exist
+        id: artifact_check
+        run: |
+          if compgen -G "release-artifacts/*" > /dev/null; then
+            echo "has_artifacts=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_artifacts=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish release
+        if: ${{ steps.artifact_check.outputs.has_artifacts == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           files: release-artifacts/*
-          generate_release_notes: true
+          body_path: RELEASE_BODY.md
           prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: false
