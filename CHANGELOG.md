@@ -9,6 +9,9 @@ All notable changes to this project are documented here.
 - Version file and runtime version helpers (`VERSION`, `gui/version.py`).
 - Release docs (`RELEASES.md`).
 - Update checker tests (`tests/test_update_checker.py`).
+- GitHub Pages download site with release links and media preview:
+  - `docs/index.html`
+  - `.github/workflows/pages.yml`
 
 ### Release Engineering
 - Added automated cross-platform release workflow:
@@ -22,6 +25,7 @@ All notable changes to this project are documented here.
   - `RELEASE_BODY.md`
 - Publish job now runs with partial artifacts when one platform build fails.
 - Fixed release publish job to checkout repository before applying `RELEASE_BODY.md`.
+- Added workflow to promote `v1.1.0-beta.5` as current non-prerelease release metadata.
 
 ### Documentation
 - Rewrote `README.md` for the current PySide6 timeline workflow.

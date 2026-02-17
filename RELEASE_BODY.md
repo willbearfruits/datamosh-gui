@@ -7,11 +7,13 @@
 Sample clip:
 - [Download AVI example](https://github.com/willbearfruits/datamosh-gui/blob/main/assets/showcase/example-1.avi)
 
+Website:
+- [Release download portal](https://willbearfruits.github.io/datamosh-gui/)
+
 ## Release Notes
 
-- This prerelease publishes available artifacts from the current build run.
-- Linux and macOS are expected in this pass.
-- Windows installer/portable artifacts may be added in the next run once the Windows build issue is fixed.
+- This is the current public release build for Linux and macOS.
+- Windows installer/portable artifacts will be added in the next release wave.
 
 ## Available Assets
 

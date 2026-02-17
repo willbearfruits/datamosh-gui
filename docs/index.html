@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Datamosh GUI Downloads</title>
+  <meta name="description" content="Datamosh GUI release page with Linux and macOS downloads, preview media, and project links.">
+  <style>
+    :root {
+      --bg: #090b10;
+      --panel: rgba(8, 12, 22, 0.72);
+      --panel-strong: rgba(9, 14, 28, 0.88);
+      --text: #ecf4ff;
+      --muted: #b8c7df;
+      --cyan: #52d8ff;
+      --lime: #95ff57;
+      --line: rgba(180, 220, 255, 0.22);
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    body {
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    .bg-video {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: saturate(1.05) contrast(1.03) brightness(0.55);
+      z-index: -2;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 18% 14%, rgba(82, 216, 255, 0.22), transparent 46%),
+        radial-gradient(circle at 78% 74%, rgba(149, 255, 87, 0.16), transparent 42%),
+        linear-gradient(180deg, rgba(3, 5, 10, 0.44), rgba(3, 5, 10, 0.86));
+      z-index: -1;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+
+    .hero {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(5px);
+    }
+
+    .label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(5, 8, 16, 0.6);
+    }
+
+    .label i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--lime);
+      box-shadow: 0 0 16px rgba(149, 255, 87, 0.72);
+    }
+
+    h1 {
+      margin: 14px 0 10px;
+      font-size: clamp(30px, 5.4vw, 56px);
+      line-height: 1.03;
+      letter-spacing: -0.02em;
+    }
+
+    .sub {
+      margin: 0;
+      max-width: 720px;
+      color: var(--muted);
+      font-size: clamp(15px, 2.6vw, 19px);
+      line-height: 1.5;
+    }
+
+    .cta-row {
+      margin-top: 22px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+      color: #04101e;
+      background: linear-gradient(130deg, var(--cyan), #90f4ff);
+      border: 1px solid rgba(255, 255, 255, 0.36);
+      border-radius: 12px;
+      padding: 11px 16px;
+      font-weight: 700;
+      font-size: 14px;
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.04);
+    }
+
+    .btn.secondary {
+      background: rgba(10, 16, 30, 0.8);
+      color: var(--text);
+      border-color: var(--line);
+    }
+
+    .layout {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .card h2,
+    .card h3 {
+      margin: 0 0 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .card p {
+      margin: 0 0 12px;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    .card ul {
+      margin: 0;
+      padding-left: 16px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .stack { display: flex; flex-direction: column; gap: 8px; }
+
+    .stack a {
+      text-decoration: none;
+      color: #e8f6ff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 14px;
+      background: rgba(6, 10, 20, 0.6);
+    }
+
+    .stack a:hover { border-color: rgba(149, 255, 87, 0.55); }
+
+    .linux { grid-column: span 12; }
+    .mac { grid-column: span 12; }
+    .win { grid-column: span 12; opacity: 0.78; }
+    .meta { grid-column: span 12; }
+
+    .thumb {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      margin-top: 10px;
+    }
+
+    .footer {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    @media (min-width: 860px) {
+      .linux, .mac, .win { grid-column: span 4; }
+      .meta { grid-column: span 12; }
+    }
+  </style>
+</head>
+<body>
+  <video class="bg-video" autoplay muted loop playsinline poster="assets/ui-preview.png">
+    <source src="assets/preview-bg.mp4" type="video/mp4">
+  </video>
+  <div class="overlay"></div>
+
+  <main class="container">
+    <section class="hero">
+      <span class="label"><i></i> Current Release · v1.1.0 (Linux/macOS)</span>
+      <h1>Datamosh GUI</h1>
+      <p class="sub">
+        Timeline-first datamoshing editor with clip-level I-frame/P-frame control, live preview,
+        cut operations, and mosh-focused render flow.
+      </p>
+      <div class="cta-row">
+        <a class="btn" href="https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.0-beta.5">Open Release</a>
+        <a class="btn secondary" href="https://github.com/willbearfruits/datamosh-gui">GitHub Repo</a>
+        <a class="btn secondary" href="https://www.patreon.com/Seriousshit">Patreon</a>
+      </div>
+    </section>
+
+    <section class="layout">
+      <div class="grid">
+        <article class="card linux">
+          <h3>Linux Downloads</h3>
+          <p>Portable and installer packages from the current release.</p>
+          <div class="stack">
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.0-beta.5/Datamosh-1.1.0-beta.5-linux-portable.tar.gz">Portable (.tar.gz)</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.0-beta.5/Datamosh-1.1.0-beta.5-linux-installer.deb">Installer (.deb)</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.0-beta.5/SHA256SUMS-linux.txt">Checksums</a>
+          </div>
+        </article>
+
+        <article class="card mac">
+          <h3>macOS Downloads</h3>
+          <p>Portable and installer packages from the current release.</p>
+          <div class="stack">
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.0-beta.5/Datamosh-1.1.0-beta.5-macos-portable.zip">Portable (.zip)</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.0-beta.5/Datamosh-1.1.0-beta.5-macos-installer.dmg">Installer (.dmg)</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.0-beta.5/SHA256SUMS-macos.txt">Checksums</a>
+          </div>
+        </article>
+
+        <article class="card win">
+          <h3>Windows</h3>
+          <p>
+            Windows packaging is being stabilized and will be added in the next release wave.
+          </p>
+          <div class="stack">
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.0-beta.5">Track release status</a>
+          </div>
+        </article>
+
+        <article class="card meta">
+          <h2>Preview and Sample</h2>
+          <p>
+            This page background is generated from the current sample output.
+            If you want the full-quality example, download the AVI below.
+          </p>
+          <div class="stack">
+            <a href="https://github.com/willbearfruits/datamosh-gui/blob/main/assets/showcase/example-1.avi">Download Example AVI</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/blob/main/assets/showcase/ui-preview.png">Download Screenshot</a>
+          </div>
+          <img class="thumb" src="assets/ui-preview.png" alt="Datamosh GUI screenshot">
+        </article>
+      </div>
+    </section>
+
+    <p class="footer">
+      Datamosh GUI · experimental release portal
+    </p>
+  </main>
+</body>
+</html>

@@ -69,6 +69,7 @@ Automated tagged releases include portable and installer packages for Linux, Win
 - Release pipeline: `.github/workflows/release.yml`
 - Packaging details: `RELEASES.md`
 - In-app update check: toolbar action `Update`
+- Download portal: `https://willbearfruits.github.io/datamosh-gui/`
 
 ## Workflow (GUI)
 
