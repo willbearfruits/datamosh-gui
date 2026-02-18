@@ -27,7 +27,8 @@ SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
 DisableProgramGroupPage=yes
-LicenseFile=LICENSE
+; Resolve from script location to repository root for CI reliability.
+LicenseFile={#SourcePath}\..\..\LICENSE
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
