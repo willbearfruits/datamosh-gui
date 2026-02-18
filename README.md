@@ -2,7 +2,7 @@
 
 Interactive timeline-based datamoshing for clip-level I-frame and P-frame manipulation.
 
-Current version: `v1.1.0`.
+Current version: `v1.1.1`.
 
 ## Support
 
@@ -68,15 +68,15 @@ Or use:
 
 ## Releases & Local Packaging
 
-- Current release page: `https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.0`
+- Current release page: `https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.1`
 - Download portal: `https://willbearfruits.github.io/datamosh-gui/`
 - Release pipeline: `.github/workflows/release.yml`
 - Packaging details: `RELEASES.md`
 
 Local build outputs (Linux host):
 
-- `local-release-artifacts/Datamosh-1.1.0-linux-portable.tar.gz`
-- `local-release-artifacts/Datamosh-1.1.0-linux-installer.deb`
+- `local-release-artifacts/Datamosh-1.1.1-linux-portable.tar.gz`
+- `local-release-artifacts/Datamosh-1.1.1-linux-installer.deb`
 - `local-release-artifacts/SHA256SUMS-linux.txt`
 
 Cross-platform local attempt logs (Linux host):

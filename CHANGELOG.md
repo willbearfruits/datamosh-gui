@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased] - 2026-02-17
 
+## [1.1.1] - 2026-02-18
+
 ### Added
 - In-app update checker wired to GitHub Releases (`Update` toolbar action).
 - Version file and runtime version helpers (`VERSION`, `gui/version.py`).
