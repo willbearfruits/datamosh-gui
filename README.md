@@ -2,7 +2,7 @@
 
 Interactive timeline-based datamoshing for clip-level I-frame and P-frame manipulation.
 
-Current version: `v1.1.3`.
+Current version: `v1.1.4`.
 
 ## Support
 
@@ -68,7 +68,7 @@ Or use:
 
 ## Releases & Local Packaging
 
-- Current release page: `https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.3`
+- Current release page: `https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.4`
 - Download portal: `https://willbearfruits.github.io/datamosh-gui/`
 - Release pipeline: `.github/workflows/release.yml`
 - Packaging details: `RELEASES.md`

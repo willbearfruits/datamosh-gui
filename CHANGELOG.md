@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 ## [Unreleased] - 2026-02-17
 
+## [1.1.4] - 2026-02-18
+
+### Changed
+- Linux release build runner pinned to `ubuntu-22.04` to improve AppImage runtime compatibility on older glibc systems.
+
 ## [1.1.3] - 2026-02-18
 
 ### Added
