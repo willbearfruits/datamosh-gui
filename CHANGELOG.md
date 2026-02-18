@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 ## [Unreleased] - 2026-02-17
 
+## [1.1.2] - 2026-02-18
+
+### Fixed
+- Windows installer build path for Inno Setup license file (`packaging/windows/datamosh.iss`).
+
+### Changed
+- Refreshed download website layout with top visual showcase and bottom platform downloads.
+- Added Windows download links in website release section.
+
 ## [1.1.1] - 2026-02-18
 
 ### Added

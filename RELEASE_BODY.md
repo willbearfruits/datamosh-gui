@@ -12,11 +12,12 @@ Website:
 
 ## Release Notes
 
-- This is the current public release build for Linux and macOS.
-- Windows installer/portable artifacts will be added in the next release wave.
+- This is the current public cross-platform release build.
+- Includes Linux, macOS, and Windows portable + installer artifacts when platform jobs succeed.
 
 ## Available Assets
 
 - Linux portable + installer (`.tar.gz`, `.deb`)
+- Windows portable + installer (`.zip`, `.exe`)
 - macOS portable + installer (`.zip`, `.dmg`)
 - Checksums (`SHA256SUMS-*.txt`)

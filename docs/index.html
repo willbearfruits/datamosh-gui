@@ -4,18 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Datamosh GUI Downloads</title>
-  <meta name="description" content="Datamosh GUI release page with Linux and macOS downloads, preview media, and project links.">
+  <meta name="description" content="Datamosh GUI release page with Linux, Windows, and macOS downloads.">
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+
     :root {
-      --bg: #090b10;
-      --panel: rgba(8, 12, 22, 0.72);
-      --panel-strong: rgba(9, 14, 28, 0.88);
-      --text: #ecf4ff;
-      --muted: #b8c7df;
-      --cyan: #52d8ff;
-      --lime: #95ff57;
-      --line: rgba(180, 220, 255, 0.22);
-      --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      --bg: #06090f;
+      --panel: rgba(8, 12, 20, 0.78);
+      --panel-strong: rgba(7, 10, 16, 0.9);
+      --line: rgba(134, 226, 255, 0.24);
+      --text: #edf4ff;
+      --muted: #aab9ca;
+      --cyan: #65dfff;
+      --lime: #9cff5c;
+      --red: #ff4f64;
+      --shadow: 0 22px 60px rgba(0, 0, 0, 0.48);
     }
 
     * { box-sizing: border-box; }
@@ -23,8 +26,8 @@
     html, body {
       margin: 0;
       min-height: 100%;
-      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
       color: var(--text);
+      font-family: "Space Grotesk", "Trebuchet MS", sans-serif;
       background: var(--bg);
     }
 
@@ -39,93 +42,125 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      filter: saturate(1.05) contrast(1.03) brightness(0.55);
-      z-index: -2;
+      filter: saturate(1.05) contrast(1.08) brightness(0.46);
+      z-index: -3;
     }
 
-    .overlay {
+    .bg-fx {
       position: fixed;
       inset: 0;
+      z-index: -2;
       background:
-        radial-gradient(circle at 18% 14%, rgba(82, 216, 255, 0.22), transparent 46%),
-        radial-gradient(circle at 78% 74%, rgba(149, 255, 87, 0.16), transparent 42%),
-        linear-gradient(180deg, rgba(3, 5, 10, 0.44), rgba(3, 5, 10, 0.86));
-      z-index: -1;
+        linear-gradient(110deg, rgba(101, 223, 255, 0.1), transparent 50%),
+        radial-gradient(circle at 80% 15%, rgba(156, 255, 92, 0.11), transparent 45%),
+        linear-gradient(180deg, rgba(3, 5, 9, 0.34), rgba(3, 5, 9, 0.9));
     }
 
-    .container {
-      max-width: 1080px;
+    .bg-noise {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      opacity: 0.14;
+      background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 3px);
+      mix-blend-mode: soft-light;
+    }
+
+    .wrap {
+      max-width: 1100px;
       margin: 0 auto;
-      padding: 32px 20px 56px;
+      padding: 28px 20px 56px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero,
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(6px);
     }
 
     .hero {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      padding: 28px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(5px);
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
     }
 
-    .label {
+    .hero::before {
+      content: "";
+      position: absolute;
+      right: -30px;
+      top: 14px;
+      width: 220px;
+      height: 12px;
+      background: repeating-linear-gradient(90deg, rgba(101, 223, 255, 0.7) 0 8px, transparent 8px 16px);
+      transform: skewX(-24deg);
+      opacity: 0.6;
+      animation: slide 6s linear infinite;
+    }
+
+    @keyframes slide {
+      0% { transform: translateX(0) skewX(-24deg); }
+      50% { transform: translateX(-26px) skewX(-24deg); }
+      100% { transform: translateX(0) skewX(-24deg); }
+    }
+
+    .release-pill {
       display: inline-flex;
-      align-items: center;
       gap: 8px;
+      align-items: center;
+      font-family: "IBM Plex Mono", monospace;
       font-size: 12px;
-      letter-spacing: 0.08em;
       text-transform: uppercase;
+      letter-spacing: 0.08em;
       color: var(--muted);
-      padding: 6px 10px;
       border: 1px solid var(--line);
       border-radius: 999px;
-      background: rgba(5, 8, 16, 0.6);
+      padding: 6px 11px;
+      background: rgba(7, 10, 16, 0.7);
     }
 
-    .label i {
-      width: 7px;
-      height: 7px;
+    .release-pill i {
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background: var(--lime);
-      box-shadow: 0 0 16px rgba(149, 255, 87, 0.72);
+      box-shadow: 0 0 14px rgba(156, 255, 92, 0.8);
     }
 
     h1 {
-      margin: 14px 0 10px;
-      font-size: clamp(30px, 5.4vw, 56px);
-      line-height: 1.03;
-      letter-spacing: -0.02em;
+      margin: 12px 0 8px;
+      font-size: clamp(34px, 6vw, 62px);
+      line-height: 0.95;
+      letter-spacing: -0.03em;
     }
 
-    .sub {
+    .hero p {
       margin: 0;
-      max-width: 720px;
       color: var(--muted);
-      font-size: clamp(15px, 2.6vw, 19px);
+      max-width: 720px;
       line-height: 1.5;
+      font-size: clamp(15px, 2.5vw, 19px);
     }
 
-    .cta-row {
-      margin-top: 22px;
+    .cta {
+      margin-top: 18px;
       display: flex;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
     }
 
     .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
       text-decoration: none;
-      color: #04101e;
-      background: linear-gradient(130deg, var(--cyan), #90f4ff);
-      border: 1px solid rgba(255, 255, 255, 0.36);
       border-radius: 12px;
-      padding: 11px 16px;
-      font-weight: 700;
+      padding: 10px 14px;
       font-size: 14px;
-      transition: transform 120ms ease, filter 120ms ease;
+      font-weight: 700;
+      border: 1px solid transparent;
+      transition: transform 140ms ease, border-color 140ms ease, filter 140ms ease;
     }
 
     .btn:hover {
@@ -133,90 +168,172 @@
       filter: brightness(1.04);
     }
 
-    .btn.secondary {
-      background: rgba(10, 16, 30, 0.8);
+    .btn.primary {
+      background: linear-gradient(130deg, var(--cyan), #b8f2ff);
+      color: #05111f;
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    .btn.ghost {
+      background: rgba(9, 14, 22, 0.82);
       color: var(--text);
       border-color: var(--line);
     }
 
-    .layout {
-      margin-top: 22px;
+    .showcase {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 16px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(12, 1fr);
       gap: 14px;
     }
 
-    .card {
-      background: var(--panel-strong);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 18px;
-      box-shadow: var(--shadow);
+    .panel {
+      padding: 14px;
     }
 
-    .card h2,
-    .card h3 {
-      margin: 0 0 10px;
+    .panel h2 {
+      margin: 0 0 6px;
+      font-size: 18px;
       letter-spacing: -0.01em;
     }
 
-    .card p {
-      margin: 0 0 12px;
-      color: var(--muted);
-      line-height: 1.45;
-      font-size: 14px;
-    }
-
-    .card ul {
+    .panel p {
       margin: 0;
-      padding-left: 16px;
       color: var(--muted);
       font-size: 14px;
-      line-height: 1.6;
+      line-height: 1.45;
     }
 
-    .stack { display: flex; flex-direction: column; gap: 8px; }
+    .media {
+      margin-top: 10px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      width: 100%;
+      display: block;
+      background: #05080e;
+    }
+
+    .signal {
+      margin-top: 12px;
+      display: flex;
+      gap: 6px;
+    }
+
+    .signal span {
+      flex: 1;
+      height: 8px;
+      border-radius: 6px;
+      background: rgba(101, 223, 255, 0.2);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .signal span::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, var(--cyan), var(--red));
+      transform: translateX(-100%);
+      animation: pulse 2.6s linear infinite;
+    }
+
+    .signal span:nth-child(2)::before { animation-delay: 0.25s; }
+    .signal span:nth-child(3)::before { animation-delay: 0.5s; }
+    .signal span:nth-child(4)::before { animation-delay: 0.75s; }
+
+    @keyframes pulse {
+      0% { transform: translateX(-100%); }
+      50% { transform: translateX(0); }
+      100% { transform: translateX(100%); }
+    }
+
+    .downloads {
+      display: grid;
+      gap: 14px;
+    }
+
+    .downloads-header {
+      padding: 18px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: var(--panel-strong);
+      box-shadow: var(--shadow);
+    }
+
+    .downloads-header h2 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      letter-spacing: -0.02em;
+    }
+
+    .downloads-header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .platforms {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .platform {
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: var(--panel-strong);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .platform h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      letter-spacing: -0.01em;
+    }
+
+    .platform p {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.42;
+    }
+
+    .stack {
+      display: grid;
+      gap: 8px;
+    }
 
     .stack a {
       text-decoration: none;
-      color: #e8f6ff;
-      border: 1px solid var(--line);
+      color: var(--text);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13px;
       border-radius: 10px;
+      border: 1px solid rgba(134, 226, 255, 0.28);
+      background: rgba(6, 10, 16, 0.75);
       padding: 9px 10px;
-      font-size: 14px;
-      background: rgba(6, 10, 20, 0.6);
     }
 
-    .stack a:hover { border-color: rgba(149, 255, 87, 0.55); }
-
-    .linux { grid-column: span 12; }
-    .mac { grid-column: span 12; }
-    .win { grid-column: span 12; opacity: 0.78; }
-    .meta { grid-column: span 12; }
-
-    .thumb {
-      width: 100%;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      margin-top: 10px;
+    .stack a:hover {
+      border-color: rgba(156, 255, 92, 0.55);
     }
 
     .footer {
-      margin-top: 16px;
+      text-align: center;
       color: var(--muted);
       font-size: 12px;
-      text-align: center;
+      font-family: "IBM Plex Mono", monospace;
+      opacity: 0.9;
     }
 
     @media (min-width: 860px) {
-      .linux, .mac, .win { grid-column: span 4; }
-      .meta { grid-column: span 12; }
+      .showcase {
+        grid-template-columns: 1.1fr 0.9fr;
+      }
+      .platforms {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
     }
   </style>
 </head>
@@ -224,74 +341,89 @@
   <video class="bg-video" autoplay muted loop playsinline poster="assets/ui-preview.png">
     <source src="assets/preview-bg.mp4" type="video/mp4">
   </video>
-  <div class="overlay"></div>
+  <div class="bg-fx"></div>
+  <div class="bg-noise"></div>
 
-  <main class="container">
+  <main class="wrap">
     <section class="hero">
-      <span class="label"><i></i> Current Release · v1.1.1</span>
+      <span class="release-pill"><i></i> current release | v1.1.2</span>
       <h1>Datamosh GUI</h1>
-      <p class="sub">
-        Timeline-first datamoshing editor with clip-level I-frame/P-frame control, live preview,
-        cut operations, and mosh-focused render flow.
+      <p>
+        Timeline-first desktop editor for controlled codec destruction.
+        Cut hard, inject I-frames, duplicate P-frames, and build intentional glitch flow.
       </p>
-      <div class="cta-row">
-        <a class="btn" href="https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.1">Open Release</a>
-        <a class="btn secondary" href="https://github.com/willbearfruits/datamosh-gui">GitHub Repo</a>
-        <a class="btn secondary" href="https://www.patreon.com/Seriousshit">Patreon</a>
-        <a class="btn secondary" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=dogme84%40gmail.com&currency_code=USD">PayPal</a>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.2">Open v1.1.2 Release</a>
+        <a class="btn ghost" href="https://github.com/willbearfruits/datamosh-gui">GitHub</a>
+        <a class="btn ghost" href="https://www.patreon.com/Seriousshit">Patreon</a>
+        <a class="btn ghost" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=dogme84%40gmail.com&currency_code=USD">PayPal</a>
       </div>
     </section>
 
-    <section class="layout">
-      <div class="grid">
-        <article class="card linux">
-          <h3>Linux Downloads</h3>
-          <p>Portable and installer packages from the current release.</p>
+    <section class="showcase">
+      <article class="panel">
+        <h2>Interface Preview</h2>
+        <p>Current timeline UI with clip-level control and edit-focused layout.</p>
+        <img class="media" src="assets/ui-preview.png" alt="Datamosh GUI screenshot">
+        <div class="signal"><span></span><span></span><span></span><span></span></div>
+      </article>
+
+      <article class="panel">
+        <h2>Glitch Loop + Sample</h2>
+        <p>Background source uses the current rendered sample loop. Download source media below.</p>
+        <video class="media" autoplay muted loop playsinline>
+          <source src="assets/preview-bg.mp4" type="video/mp4">
+        </video>
+        <div class="stack" style="margin-top:10px;">
+          <a href="https://github.com/willbearfruits/datamosh-gui/blob/main/assets/showcase/example-1.avi">Download Example AVI</a>
+          <a href="https://github.com/willbearfruits/datamosh-gui/blob/main/assets/showcase/ui-preview.png">Download Screenshot</a>
+        </div>
+      </article>
+    </section>
+
+    <section class="downloads">
+      <header class="downloads-header">
+        <h2>Downloads</h2>
+        <p>
+          Portable packages, installers, and checksums for Linux, Windows, and macOS.
+          If an asset is still processing, check the release page directly.
+        </p>
+      </header>
+
+      <div class="platforms">
+        <article class="platform">
+          <h3>Linux</h3>
+          <p>Portable tarball and Debian installer.</p>
           <div class="stack">
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.1/Datamosh-1.1.1-linux-portable.tar.gz">Portable (.tar.gz)</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.1/Datamosh-1.1.1-linux-installer.deb">Installer (.deb)</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.1/SHA256SUMS-linux.txt">Checksums</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.2/Datamosh-1.1.2-linux-portable.tar.gz">Datamosh-1.1.2-linux-portable.tar.gz</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.2/Datamosh-1.1.2-linux-installer.deb">Datamosh-1.1.2-linux-installer.deb</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.2/SHA256SUMS-linux.txt">SHA256SUMS-linux.txt</a>
           </div>
         </article>
 
-        <article class="card mac">
-          <h3>macOS Downloads</h3>
-          <p>Portable and installer packages from the current release.</p>
-          <div class="stack">
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.1/Datamosh-1.1.1-macos-portable.zip">Portable (.zip)</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.1/Datamosh-1.1.1-macos-installer.dmg">Installer (.dmg)</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.1/SHA256SUMS-macos.txt">Checksums</a>
-          </div>
-        </article>
-
-        <article class="card win">
+        <article class="platform">
           <h3>Windows</h3>
-          <p>
-            Windows packaging is being stabilized and will be added in the next release wave.
-          </p>
+          <p>Portable zip and installer exe.</p>
           <div class="stack">
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.1">Track release status</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.2/Datamosh-1.1.2-windows-portable.zip">Datamosh-1.1.2-windows-portable.zip</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.2/Datamosh-1.1.2-windows-installer.exe">Datamosh-1.1.2-windows-installer.exe</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.2/SHA256SUMS-windows.txt">SHA256SUMS-windows.txt</a>
           </div>
         </article>
 
-        <article class="card meta">
-          <h2>Preview and Sample</h2>
-          <p>
-            This page background is generated from the current sample output.
-            If you want the full-quality example, download the AVI below.
-          </p>
+        <article class="platform">
+          <h3>macOS</h3>
+          <p>Portable zip and dmg installer.</p>
           <div class="stack">
-            <a href="https://github.com/willbearfruits/datamosh-gui/blob/main/assets/showcase/example-1.avi">Download Example AVI</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/blob/main/assets/showcase/ui-preview.png">Download Screenshot</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.2/Datamosh-1.1.2-macos-portable.zip">Datamosh-1.1.2-macos-portable.zip</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.2/Datamosh-1.1.2-macos-installer.dmg">Datamosh-1.1.2-macos-installer.dmg</a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.2/SHA256SUMS-macos.txt">SHA256SUMS-macos.txt</a>
           </div>
-          <img class="thumb" src="assets/ui-preview.png" alt="Datamosh GUI screenshot">
         </article>
       </div>
     </section>
 
-    <p class="footer">
-      Datamosh GUI · experimental release portal
-    </p>
+    <p class="footer">Datamosh GUI | timeline compression art editor</p>
   </main>
 </body>
 </html>
