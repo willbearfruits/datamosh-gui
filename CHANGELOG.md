@@ -9,6 +9,14 @@ All notable changes to this project are documented here.
 - Version file and runtime version helpers (`VERSION`, `gui/version.py`).
 - Release docs (`RELEASES.md`).
 - Update checker tests (`tests/test_update_checker.py`).
+- Import options flow for clip ingest with saved defaults:
+  - normalize-all vs direct-AVI-prefer mode
+  - preset/custom normalization controls (width/height/GOP/qscale/audio)
+  - persistent import profile via Qt settings
+- Timeline I-frame injection from media files (video or image):
+  - creates a single-frame Xvid AVI inject clip
+  - inserts clip at playhead position
+  - available from timeline button, context menu, and `Ctrl+Shift+I`
 - GitHub Pages download site with release links and media preview:
   - `docs/index.html`
   - `.github/workflows/pages.yml`

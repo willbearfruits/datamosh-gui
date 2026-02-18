@@ -1,17 +1,34 @@
 """QApplication setup with dark theme."""
 
+import os
 import sys
 
+from PySide6.QtCore import QLibraryInfo
 from PySide6.QtWidgets import QApplication
 
 from gui.theme import STYLESHEET, make_dark_palette
 from gui.version import get_version
 
 
+def sanitize_qt_plugin_env() -> None:
+    """Prefer PySide6 Qt plugins over OpenCV's bundled Qt plugins."""
+    cv2_qt_marker = "cv2/qt/plugins"
+    for key in ("QT_QPA_PLATFORM_PLUGIN_PATH", "QT_PLUGIN_PATH"):
+        val = os.environ.get(key, "")
+        if cv2_qt_marker in val:
+            os.environ.pop(key, None)
+
+    plugins_dir = QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)
+    if plugins_dir:
+        os.environ.setdefault("QT_PLUGIN_PATH", plugins_dir)
+        os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", f"{plugins_dir}/platforms")
+
+
 def create_app(argv: list[str] | None = None) -> QApplication:
     """Create and configure the QApplication instance."""
     if argv is None:
         argv = sys.argv
+    sanitize_qt_plugin_env()
     app = QApplication(argv)
     app.setApplicationName("Datamosh")
     app.setApplicationVersion(get_version())

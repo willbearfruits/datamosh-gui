@@ -12,16 +12,10 @@ def register_shortcuts(window) -> None:
     from gui.main_window import MainWindow
     assert isinstance(window, MainWindow)
 
-    _bind(window, "Ctrl+O", window.clip_panel.open_files)
-    _bind(window, "Ctrl+Shift+O", window.clip_panel.open_files)
-    _bind(window, "Ctrl+R", window._on_render)
-    _bind(window, "Ctrl+Z", window._on_undo)
-    _bind(window, "Ctrl+Shift+Z", window._on_redo)
-    _bind(window, "Ctrl+Y", window._on_redo)
+    # File/edit/help shortcuts are provided by QAction shortcuts on toolbar/menu.
     _bind(window, "Space", window.preview_widget.toggle_play)
     _bind(window, "Left", window.preview_widget._step_back)
     _bind(window, "Right", window.preview_widget._step_forward)
-    _bind(window, "F1", window._show_shortcuts)
 
     # Clip navigation
     _bind(window, "Ctrl+Up", lambda: _select_adjacent(window, -1))

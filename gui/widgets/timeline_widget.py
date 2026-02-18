@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
+import json
+import subprocess
 from typing import Optional
 
-from PySide6.QtCore import QRectF, Qt, Signal, QPointF
+from PySide6.QtCore import QRectF, Qt, Signal, QPointF, QSize
 from PySide6.QtGui import (
     QColor,
     QDragEnterEvent,
     QDropEvent,
     QFont,
     QFontMetrics,
+    QIcon,
     QKeySequence,
     QLinearGradient,
     QMouseEvent,
@@ -22,19 +26,23 @@ from PySide6.QtGui import (
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
+    QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMenu,
-    QPushButton,
+    QStyle,
     QScrollBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 import mosh
-from gui.models.clip_model import ClipListModel
+from gui.models.clip_model import ClipListModel, ClipProfile
 from gui.models.project import Project, TimelineItem
 from gui.theme import TEXT_DIM
+from gui.workers.iframe_inject_worker import IFrameInjectWorker
 from gui.workers.keyframe_analyzer import FrameInfo, KeyframeAnalyzer
 
 # -- Clip colours (cycle for different clips) --
@@ -68,6 +76,10 @@ RULER_H = 28
 TRACK_TOP = RULER_H
 PLAYHEAD_HEAD_W = 12
 PLAYHEAD_HEAD_H = 10
+INJECT_MEDIA_FILTER = (
+    "Media Files (*.avi *.mp4 *.mkv *.mov *.webm *.flv *.wmv *.png *.jpg *.jpeg *.bmp *.webp);;"
+    "All Files (*)"
+)
 
 
 def _effective_keep_limit(keep_first: int, drop_first: bool) -> int:
@@ -740,6 +752,7 @@ class TimelineWidget(QWidget):
 
     frame_changed = Signal(int)
     clip_clicked = Signal(int)
+    inject_state_changed = Signal(bool)
 
     def __init__(self, project: Project, parent=None) -> None:
         super().__init__(parent)
@@ -748,12 +761,16 @@ class TimelineWidget(QWidget):
         self._frame_cache: dict[int, list[FrameInfo]] = {}
         self._cache_source: dict[int, str] = {}
         self._analysis_inflight: set[int] = set()
+        self._inject_worker: Optional[IFrameInjectWorker] = None
 
         self._build_ui()
 
         self._project.clip_updated.connect(self.refresh)
         self._project.timeline_changed.connect(self.refresh)
         self._project.timeline_item_selected.connect(self._canvas.set_selected_item)
+        self._project.timeline_changed.connect(self._sync_action_buttons)
+        self._project.timeline_item_selected.connect(self._sync_action_buttons)
+        self._sync_action_buttons()
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -761,34 +778,72 @@ class TimelineWidget(QWidget):
         layout.setSpacing(0)
 
         info_row = QHBoxLayout()
-        info_row.setContentsMargins(8, 3, 8, 3)
+        info_row.setContentsMargins(8, 4, 8, 4)
         self._info_label = QLabel("Timeline")
         self._info_label.setStyleSheet("font-weight: bold; font-size: 11px; color: #aaa;")
         info_row.addWidget(self._info_label)
         info_row.addStretch()
 
-        self._btn_cut = QPushButton("Cut")
-        self._btn_cut.setFixedHeight(22)
-        self._btn_cut.setToolTip("Cut at playhead (Ctrl+K)")
-        self._btn_cut.clicked.connect(self._cut_at_playhead)
-        info_row.addWidget(self._btn_cut)
-
-        self._btn_drop = QPushButton("Drop I")
-        self._btn_drop.setFixedHeight(22)
-        self._btn_drop.setToolTip("Toggle drop first I-frame (I)")
-        self._btn_drop.clicked.connect(self._toggle_drop_first_selected)
-        info_row.addWidget(self._btn_drop)
-
-        self._btn_del = QPushButton("Delete")
-        self._btn_del.setFixedHeight(22)
-        self._btn_del.setToolTip("Delete selected timeline segment")
-        self._btn_del.clicked.connect(self._delete_selected)
-        info_row.addWidget(self._btn_del)
-
-        self._hint_label = QLabel("Drag from bin | Drag clip to reorder | Ctrl+K cut | I toggle cut I-frame")
+        self._hint_label = QLabel(
+            "Drag from bin | Reorder by drag | Side toolbar or Timeline menu for edit actions"
+        )
         self._hint_label.setStyleSheet("font-size: 10px; color: #555;")
         info_row.addWidget(self._hint_label)
         layout.addLayout(info_row)
+
+        content_row = QHBoxLayout()
+        content_row.setContentsMargins(0, 0, 0, 0)
+        content_row.setSpacing(0)
+
+        action_frame = QFrame()
+        action_frame.setObjectName("timelineActionBar")
+        action_frame.setFixedWidth(38)
+        action_frame.setStyleSheet(
+            """
+            QFrame#timelineActionBar {
+                border-right: 1px solid #2a2a2a;
+                background: #161616;
+            }
+            """
+        )
+        action_layout = QVBoxLayout(action_frame)
+        action_layout.setContentsMargins(6, 6, 6, 6)
+        action_layout.setSpacing(6)
+
+        self._btn_cut = self._make_side_action_button(
+            self._theme_icon(["edit-cut"], QStyle.StandardPixmap.SP_ArrowRight),
+            "Cut at playhead (Ctrl+K)",
+            self._cut_at_playhead,
+        )
+        action_layout.addWidget(self._btn_cut)
+
+        self._btn_inject = self._make_side_action_button(
+            self._theme_icon(["list-add", "insert-image"], QStyle.StandardPixmap.SP_FileDialogNewFolder),
+            "Inject single I-frame clip from media (Ctrl+Shift+I)",
+            self._inject_iframe_from_media,
+        )
+        action_layout.addWidget(self._btn_inject)
+
+        self._btn_drop = self._make_side_action_button(
+            self._theme_icon(["format-text-strikethrough", "edit-undo"], QStyle.StandardPixmap.SP_BrowserStop),
+            "Toggle drop first I-frame (I)",
+            self._toggle_drop_first_selected,
+        )
+        action_layout.addWidget(self._btn_drop)
+
+        self._btn_del = self._make_side_action_button(
+            self._theme_icon(["edit-delete", "user-trash"], QStyle.StandardPixmap.SP_TrashIcon),
+            "Delete selected timeline segment (Delete)",
+            self._delete_selected,
+        )
+        action_layout.addWidget(self._btn_del)
+        action_layout.addStretch()
+
+        content_row.addWidget(action_frame, 0)
+
+        main_col = QVBoxLayout()
+        main_col.setContentsMargins(0, 0, 0, 0)
+        main_col.setSpacing(0)
 
         self._canvas = TimelineCanvas()
         self._canvas.frame_clicked.connect(self._on_frame_clicked)
@@ -799,7 +854,7 @@ class TimelineWidget(QWidget):
         self._canvas.viewport_changed.connect(self._sync_scrollbar)
         self._canvas.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._canvas.customContextMenuRequested.connect(self._show_context_menu)
-        layout.addWidget(self._canvas, 1)
+        main_col.addWidget(self._canvas, 1)
 
         self._scrollbar = QScrollBar(Qt.Orientation.Horizontal)
         self._scrollbar.setStyleSheet(
@@ -821,7 +876,10 @@ class TimelineWidget(QWidget):
         )
         self._scrollbar.setRange(0, 1000)
         self._scrollbar.valueChanged.connect(self._on_scrollbar)
-        layout.addWidget(self._scrollbar)
+        main_col.addWidget(self._scrollbar)
+
+        content_row.addLayout(main_col, 1)
+        layout.addLayout(content_row, 1)
 
         self._cut_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
         self._cut_shortcut.activated.connect(self._cut_at_playhead)
@@ -831,6 +889,34 @@ class TimelineWidget(QWidget):
 
         self._delete_shortcut = QShortcut(QKeySequence("Delete"), self)
         self._delete_shortcut.activated.connect(self._delete_selected)
+
+        self._inject_shortcut = QShortcut(QKeySequence("Ctrl+Shift+I"), self)
+        self._inject_shortcut.activated.connect(self._inject_iframe_from_media)
+
+    def _make_side_action_button(self, icon: QIcon, tooltip: str, callback) -> QToolButton:
+        btn = QToolButton(self)
+        btn.setAutoRaise(True)
+        btn.setIcon(icon)
+        btn.setIconSize(QSize(18, 18))
+        btn.setFixedSize(26, 26)
+        btn.setToolTip(tooltip)
+        btn.clicked.connect(callback)
+        return btn
+
+    def _theme_icon(self, names: list[str], fallback: QStyle.StandardPixmap) -> QIcon:
+        for name in names:
+            icon = QIcon.fromTheme(name)
+            if not icon.isNull():
+                return icon
+        return self.style().standardIcon(fallback)
+
+    def _sync_action_buttons(self, *_args) -> None:
+        has_items = bool(self._project.timeline_items)
+        has_selected = self._project.selected_timeline_index >= 0
+        self._btn_cut.setEnabled(has_items)
+        self._btn_drop.setEnabled(has_selected)
+        self._btn_del.setEnabled(has_selected)
+        self._btn_inject.setEnabled(not (self._inject_worker and self._inject_worker.isRunning()))
 
     def _sync_scrollbar(self) -> None:
         frac = self._canvas.get_scroll_fraction()
@@ -937,6 +1023,7 @@ class TimelineWidget(QWidget):
         analyzer = KeyframeAnalyzer(path, self)
         analyzer.finished_ok.connect(lambda frames, k=key: self._on_frames_ready(k, frames))
         analyzer.error.connect(lambda msg, k=key: self._on_analysis_error(k, msg))
+        analyzer.finished.connect(lambda a=analyzer: self._on_analyzer_finished(a))
         analyzer.finished.connect(analyzer.deleteLater)
         self._analyzers.append(analyzer)
         self._analysis_inflight.add(key)
@@ -950,6 +1037,10 @@ class TimelineWidget(QWidget):
     def _on_analysis_error(self, key: int, msg: str) -> None:
         self._analysis_inflight.discard(key)
         self._info_label.setText(f"Analysis error: {msg}")
+
+    def _on_analyzer_finished(self, analyzer: KeyframeAnalyzer) -> None:
+        if analyzer in self._analyzers:
+            self._analyzers.remove(analyzer)
 
     # -- Actions -----------------------------------------------------------
 
@@ -990,6 +1081,69 @@ class TimelineWidget(QWidget):
         if self._project.remove_timeline_item(idx):
             self._project.status_message.emit("Timeline item removed")
 
+    # Public wrappers for menubar integration.
+    def cut_at_playhead(self) -> None:
+        self._cut_at_playhead()
+
+    def inject_iframe_from_media(self) -> None:
+        self._inject_iframe_from_media()
+
+    def toggle_drop_first_selected(self) -> None:
+        self._toggle_drop_first_selected()
+
+    def delete_selected(self) -> None:
+        self._delete_selected()
+
+    def inject_running(self) -> bool:
+        return bool(self._inject_worker and self._inject_worker.isRunning())
+
+    def _inject_iframe_from_media(self) -> None:
+        if self._inject_worker and self._inject_worker.isRunning():
+            self._project.status_message.emit("I-frame inject is already running")
+            return
+
+        src_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Inject I-Frame Source",
+            "",
+            INJECT_MEDIA_FILTER,
+        )
+        if not src_path:
+            return
+
+        source = Path(src_path)
+        if not source.is_file():
+            self._project.status_message.emit("Inject source file not found")
+            return
+
+        width, height, fps = self._inject_target_format()
+        insert_at = self._insert_index_at_playhead()
+
+        worker = IFrameInjectWorker(
+            source=source,
+            width=width,
+            height=height,
+            fps=fps,
+            parent=self,
+        )
+        worker.finished_ok.connect(
+            lambda out_path, out_fps, src=source, idx=insert_at: self._on_iframe_injected(
+                src,
+                Path(out_path),
+                out_fps,
+                idx,
+            )
+        )
+        worker.error.connect(self._on_iframe_inject_error)
+        worker.finished.connect(worker.deleteLater)
+        worker.finished.connect(self._on_iframe_worker_finished)
+
+        self._inject_worker = worker
+        self._sync_action_buttons()
+        self.inject_state_changed.emit(True)
+        self._project.status_message.emit(f"Injecting I-frame from {source.name}...")
+        worker.start()
+
     def _show_context_menu(self, pos) -> None:
         item_idx = self._canvas.timeline_item_at_pos(pos)
         if item_idx >= 0:
@@ -1013,12 +1167,16 @@ class TimelineWidget(QWidget):
         menu.addSeparator()
         act_add_selected = menu.addAction("Add Selected Bin Clip")
         act_add_selected.triggered.connect(self._add_selected_bin_clip)
+        act_inject = menu.addAction("Inject I-Frame From Media...")
+        act_inject.triggered.connect(self._inject_iframe_from_media)
 
         if self._project.selected_timeline_index < 0:
             act_drop.setEnabled(False)
             act_delete.setEnabled(False)
         if self._project.selected_row < 0:
             act_add_selected.setEnabled(False)
+        if self._inject_worker and self._inject_worker.isRunning():
+            act_inject.setEnabled(False)
 
         menu.exec(self._canvas.mapToGlobal(pos))
 
@@ -1030,6 +1188,135 @@ class TimelineWidget(QWidget):
         insert_at = idx + 1 if idx >= 0 else len(self._project.timeline_items)
         if self._project.insert_timeline_from_row(row, insert_at):
             self._project.status_message.emit("Clip inserted on timeline")
+
+    def _insert_index_at_playhead(self) -> int:
+        idx, local_frame = self._canvas.current_playhead_location()
+        if idx < 0:
+            return len(self._project.timeline_items)
+        if local_frame <= 0:
+            return idx
+        return idx + 1
+
+    def _inject_target_format(self) -> tuple[Optional[int], Optional[int], float]:
+        clip: Optional[ClipProfile] = None
+        selected_idx = self._project.selected_timeline_index
+        if 0 <= selected_idx < len(self._project.timeline_items):
+            clip = self._project.timeline_items[selected_idx].clip
+        elif self._project.selected_clip is not None:
+            clip = self._project.selected_clip
+        elif self._project.timeline_items:
+            clip = self._project.timeline_items[0].clip
+        elif self._project.clips:
+            clip = self._project.clips[0]
+
+        width: Optional[int] = None
+        height: Optional[int] = None
+        fps = 30.0
+        if clip is not None:
+            width = clip.frame_width if clip.frame_width > 0 else None
+            height = clip.frame_height if clip.frame_height > 0 else None
+            fps = clip.fps if clip.fps > 0 else 30.0
+            if (width is None or height is None) and clip.normalized_path:
+                pw, ph, pfps = self._probe_video_stream(clip.normalized_path)
+                if width is None:
+                    width = pw
+                if height is None:
+                    height = ph
+                if pfps > 0:
+                    fps = pfps
+        return width, height, fps
+
+    def _on_iframe_injected(
+        self,
+        source_path: Path,
+        generated_path: Path,
+        out_fps: float,
+        insert_at: int,
+    ) -> None:
+        width, height, _ = self._probe_video_stream(generated_path)
+        clip = ClipProfile(
+            source_path=source_path,
+            normalized_path=generated_path,
+            total_frames=1,
+            fps=out_fps if out_fps > 0 else 30.0,
+            frame_width=width or 0,
+            frame_height=height or 0,
+        )
+        self._project.begin_undo_step()
+        self._project.add_clip(clip, record_undo=False, add_to_timeline=False)
+        target = max(0, min(insert_at, len(self._project.timeline_items)))
+        self._project.insert_timeline_clip(clip, index=target, record_undo=False)
+        self._project.status_message.emit(f"Injected I-frame: {source_path.name}")
+
+    def _on_iframe_inject_error(self, msg: str) -> None:
+        self._project.status_message.emit(f"I-frame inject failed: {msg}")
+
+    def _on_iframe_worker_finished(self) -> None:
+        self._inject_worker = None
+        self._sync_action_buttons()
+        self.inject_state_changed.emit(False)
+
+    def shutdown(self) -> None:
+        """Stop background timeline workers before app shutdown."""
+        if self._inject_worker and self._inject_worker.isRunning():
+            self._inject_worker.quit()
+            if not self._inject_worker.wait(1000):
+                self._inject_worker.terminate()
+                self._inject_worker.wait(300)
+        self._inject_worker = None
+        self.inject_state_changed.emit(False)
+
+        for analyzer in list(self._analyzers):
+            if analyzer.isRunning():
+                analyzer.quit()
+                if not analyzer.wait(800):
+                    analyzer.terminate()
+                    analyzer.wait(300)
+        self._analyzers.clear()
+        self._analysis_inflight.clear()
+
+    @staticmethod
+    def _probe_video_stream(path: Path) -> tuple[Optional[int], Optional[int], float]:
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe",
+                    "-v",
+                    "quiet",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=width,height,r_frame_rate",
+                    "-of",
+                    "json",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=8,
+            )
+            if result.returncode != 0:
+                return None, None, 0.0
+            data = json.loads(result.stdout or "{}")
+            streams = data.get("streams", [])
+            if not streams:
+                return None, None, 0.0
+            stream = streams[0]
+            width = int(stream.get("width", 0) or 0)
+            height = int(stream.get("height", 0) or 0)
+            fps_raw = str(stream.get("r_frame_rate", "0/1"))
+            fps = 0.0
+            if "/" in fps_raw:
+                num, den = fps_raw.split("/", 1)
+                den_v = float(den)
+                if den_v == 0:
+                    den_v = 1.0
+                fps = float(num) / den_v
+            elif fps_raw:
+                fps = float(fps_raw)
+            return (width or None), (height or None), fps
+        except Exception:
+            return None, None, 0.0
 
     # -- Helpers -----------------------------------------------------------
 

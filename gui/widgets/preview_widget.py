@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
     QSlider,
+    QStyle,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -80,11 +83,14 @@ class PreviewWidget(QWidget):
         self._btn_prev.clicked.connect(self._step_back)
         controls.addWidget(self._btn_prev)
 
-        self._btn_play = QPushButton("Play")
-        self._btn_play.setFixedWidth(50)
+        self._btn_play = QToolButton()
+        self._btn_play.setAutoRaise(True)
+        self._btn_play.setIconSize(QSize(18, 18))
+        self._btn_play.setFixedSize(30, 30)
         self._btn_play.setToolTip("Play/Pause (Space)")
         self._btn_play.clicked.connect(self.toggle_play)
         controls.addWidget(self._btn_play)
+        self._set_play_icon()
 
         self._btn_next = QPushButton(">>")
         self._btn_next.setFixedWidth(36)
@@ -105,11 +111,14 @@ class PreviewWidget(QWidget):
 
         controls.addSpacing(8)
 
-        self._btn_mode = QPushButton("Timeline")
-        self._btn_mode.setFixedWidth(80)
+        self._btn_mode = QToolButton()
+        self._btn_mode.setAutoRaise(True)
+        self._btn_mode.setIconSize(QSize(18, 18))
+        self._btn_mode.setFixedSize(30, 30)
         self._btn_mode.setToolTip("Toggle timeline preview vs selected clip preview")
         self._btn_mode.clicked.connect(self._toggle_mode)
         controls.addWidget(self._btn_mode)
+        self._refresh_mode_button()
 
         layout.addLayout(controls)
 
@@ -145,7 +154,7 @@ class PreviewWidget(QWidget):
 
     def _toggle_mode(self) -> None:
         self._preview_all = not self._preview_all
-        self._btn_mode.setText("Timeline" if self._preview_all else "Selected")
+        self._refresh_mode_button()
         self._last_mosh_id = None  # force refresh
         self.schedule_update()
 
@@ -243,9 +252,20 @@ class PreviewWidget(QWidget):
     def _cancel_workers(self) -> None:
         if self._extractor and self._extractor.isRunning():
             self._extractor.abort()
-            self._extractor.wait(1000)
+            if not self._extractor.wait(1000):
+                self._extractor.terminate()
+                self._extractor.wait(300)
         if self._mosh_worker and self._mosh_worker.isRunning():
-            self._mosh_worker.wait(2000)
+            if not self._mosh_worker.wait(2000):
+                self._mosh_worker.terminate()
+                self._mosh_worker.wait(300)
+
+    def shutdown(self) -> None:
+        """Stop preview timers/workers and clean temp files."""
+        self._debounce.stop()
+        self._stop_playback()
+        self._cancel_workers()
+        shutil.rmtree(self._temp_dir, ignore_errors=True)
 
     # -- Playback controls -------------------------------------------------
 
@@ -253,12 +273,12 @@ class PreviewWidget(QWidget):
         if not self._frames:
             return
         self._playing = True
-        self._btn_play.setText("Pause")
+        self._set_play_icon()
         self._play_timer.start()
 
     def _stop_playback(self) -> None:
         self._playing = False
-        self._btn_play.setText("Play")
+        self._set_play_icon()
         self._play_timer.stop()
 
     def _advance_frame(self) -> None:
@@ -293,6 +313,36 @@ class PreviewWidget(QWidget):
             Qt.TransformationMode.SmoothTransformation,
         )
         self._display.setPixmap(scaled)
+
+    def _set_play_icon(self) -> None:
+        sp = (
+            QStyle.StandardPixmap.SP_MediaPause
+            if self._playing
+            else QStyle.StandardPixmap.SP_MediaPlay
+        )
+        self._btn_play.setIcon(self.style().standardIcon(sp))
+
+    def _refresh_mode_button(self) -> None:
+        if self._preview_all:
+            icon = self._theme_icon(
+                ["view-media-playlist", "view-list-details"],
+                QStyle.StandardPixmap.SP_FileDialogDetailedView,
+            )
+            self._btn_mode.setToolTip("Timeline mode (click for selected clip mode)")
+        else:
+            icon = self._theme_icon(
+                ["video-x-generic", "media-playback-start"],
+                QStyle.StandardPixmap.SP_FileIcon,
+            )
+            self._btn_mode.setToolTip("Selected clip mode (click for timeline mode)")
+        self._btn_mode.setIcon(icon)
+
+    def _theme_icon(self, names: list[str], fallback: QStyle.StandardPixmap) -> QIcon:
+        for name in names:
+            icon = QIcon.fromTheme(name)
+            if not icon.isNull():
+                return icon
+        return self.style().standardIcon(fallback)
 
     @staticmethod
     def _estimate_preview_frame_count(clips) -> Optional[int]:

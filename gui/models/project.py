@@ -100,12 +100,19 @@ class Project(QObject):
 
     # -- Clip management ---------------------------------------------------
 
-    def add_clip(self, clip: ClipProfile, *, record_undo: bool = True) -> int:
+    def add_clip(
+        self,
+        clip: ClipProfile,
+        *,
+        record_undo: bool = True,
+        add_to_timeline: bool = True,
+    ) -> int:
         if record_undo:
             self._record_undo_state()
         row = self.clip_model.add_clip(clip)
         self.clips_changed.emit()
-        self.insert_timeline_clip(clip, record_undo=False)
+        if add_to_timeline:
+            self.insert_timeline_clip(clip, record_undo=False)
         if self._selected_row < 0:
             self.select_clip(row)
         return row

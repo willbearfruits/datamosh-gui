@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QLabel,
     QLineEdit,
+    QSizePolicy,
     QScrollArea,
     QSlider,
     QSpinBox,
@@ -29,18 +30,22 @@ class _LabeledSlider(QWidget):
 
         row = QHBoxLayout()
         self._label = QLabel(label)
+        self._label.setWordWrap(True)
+        self._label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         row.addWidget(self._label)
-        row.addStretch()
         self.spin = QSpinBox()
         self.spin.setRange(lo, hi)
         self.spin.setValue(default)
-        self.spin.setFixedWidth(64)
+        self.spin.setMinimumWidth(64)
+        self.spin.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         row.addWidget(self.spin)
+        row.setStretch(0, 1)
         layout.addLayout(row)
 
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(lo, hi)
         self.slider.setValue(default)
+        self.slider.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         layout.addWidget(self.slider)
 
         self.slider.valueChanged.connect(self.spin.setValue)
@@ -69,6 +74,7 @@ class SettingsPanel(QWidget):
         self._project.timeline_item_selected.connect(self.load_timeline_item)
 
     def _build_ui(self) -> None:
+        self.setMinimumWidth(320)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(4, 4, 4, 4)
 
@@ -86,6 +92,8 @@ class SettingsPanel(QWidget):
 
         self._clip_label = QLabel("No clip selected")
         self._clip_label.setStyleSheet("color: #8c8c8c;")
+        self._clip_label.setWordWrap(True)
+        self._clip_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._form.addWidget(self._clip_label)
 
         # Keyframe group
@@ -241,6 +249,8 @@ class SettingsPanel(QWidget):
 
     def _refresh_clip_label(self, clip_name: str) -> None:
         if self._timeline_item_matches_current_clip():
-            self._clip_label.setText(f"{clip_name}  [segment {self._current_timeline_index + 1}]")
+            text = f"{clip_name}  [segment {self._current_timeline_index + 1}]"
         else:
-            self._clip_label.setText(clip_name)
+            text = clip_name
+        self._clip_label.setText(text)
+        self._clip_label.setToolTip(text)

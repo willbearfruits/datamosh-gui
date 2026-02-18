@@ -1,7 +1,7 @@
 """Main window with splitter-based layout."""
 
 from PySide6.QtCore import Qt, Signal, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
@@ -17,7 +17,14 @@ from gui.widgets.settings_panel import SettingsPanel
 from gui.widgets.timeline_widget import TimelineWidget
 from gui.widgets.toolbar import Toolbar
 from gui.models.project import Project
-from gui.version import REPOSITORY, get_version, release_channel
+from gui.version import (
+    BUY_ME_A_COFFEE_URL,
+    PATREON_URL,
+    REPOSITORY,
+    REPOSITORY_URL,
+    get_version,
+    release_channel,
+)
 from gui.workers.update_worker import UpdateWorker
 
 
@@ -51,6 +58,7 @@ class MainWindow(QMainWindow):
         self.preview_widget = PreviewWidget(self.project)
         self.settings_panel = SettingsPanel(self.project)
         self.timeline_widget = TimelineWidget(self.project)
+        self._build_menus()
 
         # Centre column: preview on top, timeline on bottom
         centre = QWidget()
@@ -79,13 +87,15 @@ class MainWindow(QMainWindow):
 
         # Horizontal splitter: clip_panel | centre | settings
         h_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.clip_panel.setMinimumWidth(250)
+        self.settings_panel.setMinimumWidth(320)
         h_splitter.addWidget(self.clip_panel)
         h_splitter.addWidget(centre)
         h_splitter.addWidget(self.settings_panel)
         h_splitter.setStretchFactor(0, 1)
         h_splitter.setStretchFactor(1, 4)
         h_splitter.setStretchFactor(2, 1)
-        h_splitter.setSizes([200, 680, 220])
+        h_splitter.setSizes([280, 720, 360])
 
         self.setCentralWidget(h_splitter)
 
@@ -93,6 +103,46 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
+
+    def _build_menus(self) -> None:
+        menu = self.menuBar()
+
+        file_menu = menu.addMenu("&File")
+        file_menu.addAction(self.toolbar.open_action)
+        file_menu.addAction(self.toolbar.add_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.toolbar.render_action)
+        file_menu.addSeparator()
+        self._quit_action = QAction("Quit", self)
+        self._quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self._quit_action.triggered.connect(self.close)
+        file_menu.addAction(self._quit_action)
+
+        edit_menu = menu.addMenu("&Edit")
+        edit_menu.addAction(self.toolbar.undo_action)
+        edit_menu.addAction(self.toolbar.redo_action)
+
+        timeline_menu = menu.addMenu("&Timeline")
+        self._menu_cut = timeline_menu.addAction("Cut At Playhead")
+        self._menu_cut.triggered.connect(self.timeline_widget.cut_at_playhead)
+        self._menu_inject = timeline_menu.addAction("Inject I-Frame From Media...")
+        self._menu_inject.triggered.connect(self.timeline_widget.inject_iframe_from_media)
+        self._menu_drop = timeline_menu.addAction("Toggle Drop First I-Frame")
+        self._menu_drop.triggered.connect(self.timeline_widget.toggle_drop_first_selected)
+        self._menu_delete = timeline_menu.addAction("Delete Selected Segment")
+        self._menu_delete.triggered.connect(self.timeline_widget.delete_selected)
+
+        help_menu = menu.addMenu("&Help")
+        self._menu_repo = help_menu.addAction("GitHub Repository")
+        self._menu_repo.triggered.connect(lambda: self._open_url(REPOSITORY_URL))
+        self._menu_patreon = help_menu.addAction("Patreon")
+        self._menu_patreon.triggered.connect(lambda: self._open_url(PATREON_URL))
+        self._menu_bmc = help_menu.addAction("Buy Me a Coffee")
+        self._menu_bmc.triggered.connect(lambda: self._open_url(BUY_ME_A_COFFEE_URL))
+        help_menu.addSeparator()
+        help_menu.addAction(self.toolbar.update_action)
+        help_menu.addSeparator()
+        help_menu.addAction(self.toolbar.help_action)
 
     # -- Signal wiring -----------------------------------------------------
 
@@ -113,7 +163,11 @@ class MainWindow(QMainWindow):
         self.project.timeline_changed.connect(self.preview_widget.schedule_update)
         self.project.timeline_changed.connect(self.timeline_widget.refresh)
         self.project.timeline_item_selected.connect(self.preview_widget.schedule_update)
-        self.project.history_changed.connect(self.toolbar.set_history_state)
+        self.project.history_changed.connect(self._set_history_state)
+        self.project.timeline_item_selected.connect(self._set_timeline_menu_state)
+        self.project.clips_changed.connect(self._set_timeline_menu_state)
+        self.project.timeline_changed.connect(self._set_timeline_menu_state)
+        self.timeline_widget.inject_state_changed.connect(self._set_timeline_menu_state)
 
         # Timeline clip selection (clicking a clip region in the timeline)
         self.timeline_widget.clip_clicked.connect(self.project.select_clip)
@@ -124,7 +178,8 @@ class MainWindow(QMainWindow):
 
         # Status bar
         self.project.status_message.connect(self.set_status)
-        self.toolbar.set_history_state(self.project.can_undo(), self.project.can_redo())
+        self._set_history_state(self.project.can_undo(), self.project.can_redo())
+        self._set_timeline_menu_state()
 
     # -- Drag-and-drop -----------------------------------------------------
 
@@ -136,6 +191,19 @@ class MainWindow(QMainWindow):
         paths = [u.toLocalFile() for u in event.mimeData().urls() if u.isLocalFile()]
         if paths:
             self.files_dropped.emit(paths)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        try:
+            self.preview_widget.shutdown()
+            self.timeline_widget.shutdown()
+            self.clip_panel.shutdown()
+            if self._update_worker and self._update_worker.isRunning():
+                self._update_worker.quit()
+                if not self._update_worker.wait(1000):
+                    self._update_worker.terminate()
+                    self._update_worker.wait(300)
+        finally:
+            super().closeEvent(event)
 
     # -- Actions -----------------------------------------------------------
 
@@ -212,3 +280,17 @@ class MainWindow(QMainWindow):
 
     def set_status(self, msg: str, timeout: int = 0) -> None:
         self.status_bar.showMessage(msg, timeout)
+
+    def _open_url(self, url: str) -> None:
+        QDesktopServices.openUrl(QUrl(url))
+
+    def _set_history_state(self, can_undo: bool, can_redo: bool) -> None:
+        self.toolbar.set_history_state(can_undo, can_redo)
+
+    def _set_timeline_menu_state(self, *_args) -> None:
+        has_items = self.project.has_timeline_items()
+        has_selection = self.project.selected_timeline_index >= 0
+        self._menu_cut.setEnabled(has_items)
+        self._menu_drop.setEnabled(has_selection)
+        self._menu_delete.setEnabled(has_selection)
+        self._menu_inject.setEnabled(not self.timeline_widget.inject_running())

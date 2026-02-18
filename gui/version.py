@@ -8,6 +8,12 @@ from pathlib import Path
 
 DEFAULT_VERSION = "0.0.0-dev"
 REPOSITORY = "willbearfruits/datamosh-gui"
+REPOSITORY_URL = "https://github.com/willbearfruits/datamosh-gui"
+PATREON_URL = "https://www.patreon.com/Seriousshit"
+BUY_ME_A_COFFEE_URL = (
+    "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=dogme84%40gmail.com"
+    "&currency_code=USD"
+)
 
 
 def _candidate_version_paths() -> list[Path]:

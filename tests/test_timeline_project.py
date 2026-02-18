@@ -20,6 +20,17 @@ def test_add_clip_populates_timeline(qtbot):
     assert project.timeline_items[0].clip is clip
 
 
+def test_add_clip_can_skip_auto_timeline_insert(qtbot):
+    project = Project()
+    clip = _clip("/tmp/a.mp4")
+
+    row = project.add_clip(clip, add_to_timeline=False)
+
+    assert row == 0
+    assert len(project.clips) == 1
+    assert len(project.timeline_items) == 0
+
+
 def test_insert_timeline_from_row_creates_duplicate_segment(qtbot):
     project = Project()
     clip = _clip("/tmp/a.mp4")

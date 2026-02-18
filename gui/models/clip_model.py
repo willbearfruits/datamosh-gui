@@ -26,6 +26,8 @@ class ClipProfile:
     normalizing: bool = False
     total_frames: int = 0
     fps: float = 30.0
+    frame_width: int = 0
+    frame_height: int = 0
     # Timeline segment metadata (used for render/preview clones).
     trim_start_frame: int = 0
     trim_end_frame: int = 0  # exclusive; 0 means "use full clip"
@@ -112,6 +114,8 @@ class ClipListModel(QAbstractListModel):
         if role == Qt.ItemDataRole.DisplayRole:
             suffix = " (normalizing...)" if clip.normalizing else ""
             return f"{clip.label()}{suffix}"
+        if role == Qt.ItemDataRole.ToolTipRole:
+            return str(clip.source_path)
         if role == Qt.ItemDataRole.DecorationRole:
             return clip.thumbnail
         if role == Qt.ItemDataRole.UserRole:
