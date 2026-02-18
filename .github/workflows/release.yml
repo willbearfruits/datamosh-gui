@@ -45,6 +45,7 @@ jobs:
           mkdir -p release-artifacts
           tar -C dist -czf "release-artifacts/Datamosh-${VERSION}-linux-portable.tar.gz" Datamosh
           ./packaging/linux/build_deb.sh "$VERSION" "dist/Datamosh" "release-artifacts"
+          ./packaging/linux/build_appimage.sh "$VERSION" "dist/Datamosh" "release-artifacts"
           sha256sum release-artifacts/* > release-artifacts/SHA256SUMS-linux.txt
 
       - name: Upload workflow artifacts

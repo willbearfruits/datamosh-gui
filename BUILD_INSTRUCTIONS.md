@@ -33,6 +33,18 @@ Output:
 
 - `dist/Datamosh/`
 
+Build Linux installer artifacts:
+
+```bash
+./packaging/linux/build_deb.sh "$(cat VERSION)" "dist/Datamosh" "release-artifacts"
+./packaging/linux/build_appimage.sh "$(cat VERSION)" "dist/Datamosh" "release-artifacts"
+```
+
+Additional output:
+
+- `release-artifacts/Datamosh-<version>-linux-installer.deb`
+- `release-artifacts/Datamosh-<version>-linux-<arch>.AppImage`
+
 Run packaged app:
 
 ```bash

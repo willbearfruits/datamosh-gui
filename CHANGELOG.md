@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 ## [Unreleased] - 2026-02-17
 
+## [1.1.3] - 2026-02-18
+
+### Added
+- Linux AppImage packaging script (`packaging/linux/build_appimage.sh`).
+- Linux release artifact now includes `Datamosh-<version>-linux-x86_64.AppImage`.
+
+### Changed
+- GitHub release workflow now builds and publishes Linux AppImage artifacts.
+- Website and release docs updated to include AppImage downloads.
+
 ## [1.1.2] - 2026-02-18
 
 ### Fixed

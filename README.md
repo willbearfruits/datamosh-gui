@@ -2,7 +2,7 @@
 
 Interactive timeline-based datamoshing for clip-level I-frame and P-frame manipulation.
 
-Current version: `v1.1.2`.
+Current version: `v1.1.3`.
 
 ## Support
 
@@ -68,7 +68,7 @@ Or use:
 
 ## Releases & Local Packaging
 
-- Current release page: `https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.2`
+- Current release page: `https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.3`
 - Download portal: `https://willbearfruits.github.io/datamosh-gui/`
 - Release pipeline: `.github/workflows/release.yml`
 - Packaging details: `RELEASES.md`
@@ -77,6 +77,7 @@ Local build output naming (Linux host):
 
 - `local-release-artifacts/Datamosh-<version>-linux-portable.tar.gz`
 - `local-release-artifacts/Datamosh-<version>-linux-installer.deb`
+- `local-release-artifacts/Datamosh-<version>-linux-<arch>.AppImage`
 - `local-release-artifacts/SHA256SUMS-linux.txt`
 
 Cross-platform local attempt logs (Linux host):
@@ -96,6 +97,8 @@ pyinstaller --noconfirm --clean --windowed --name Datamosh \
   --add-data "LICENSE:." \
   --add-data "VERSION:." \
   main.py
+./packaging/linux/build_deb.sh "$(cat VERSION)" "dist/Datamosh" "local-release-artifacts"
+./packaging/linux/build_appimage.sh "$(cat VERSION)" "dist/Datamosh" "local-release-artifacts"
 ```
 
 Windows (PowerShell, run on Windows):

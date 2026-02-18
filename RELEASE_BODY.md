@@ -17,7 +17,7 @@ Website:
 
 ## Available Assets
 
-- Linux portable + installer (`.tar.gz`, `.deb`)
+- Linux portable + installer + AppImage (`.tar.gz`, `.deb`, `.AppImage`)
 - Windows portable + installer (`.zip`, `.exe`)
 - macOS portable + installer (`.zip`, `.dmg`)
 - Checksums (`SHA256SUMS-*.txt`)

@@ -9,6 +9,7 @@ Each tagged release (`v*`) produces:
 - Linux:
   - Portable: `Datamosh-<version>-linux-portable.tar.gz`
   - Installer: `Datamosh-<version>-linux-installer.deb`
+  - AppImage: `Datamosh-<version>-linux-<arch>.AppImage`
 - Windows:
   - Portable: `Datamosh-<version>-windows-portable.zip`
   - Installer: `Datamosh-<version>-windows-installer.exe`
