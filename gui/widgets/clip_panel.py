@@ -110,6 +110,54 @@ class ThumbnailExtractor(QThread):
             self.done.emit(self._row, pix)
 
 
+class VideoInfoWorker(QThread):
+    """Probe video frame count, fps, and dimensions off the main thread."""
+
+    done = Signal(int, int, float, int, int)  # row, total_frames, fps, width, height
+
+    def __init__(self, path: Path, row: int, parent=None) -> None:
+        super().__init__(parent)
+        self._path = path
+        self._row = row
+
+    def run(self) -> None:
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe", "-v", "quiet",
+                    "-select_streams", "v:0",
+                    "-count_packets",
+                    "-show_entries", "stream=width,height,nb_read_packets,r_frame_rate",
+                    "-of", "json",
+                    str(self._path),
+                ],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode != 0:
+                return
+            data = json.loads(result.stdout)
+            streams = data.get("streams", [])
+            if not streams:
+                return
+            stream = streams[0]
+            fps_str = str(stream.get("r_frame_rate", "30/1"))
+            if "/" in fps_str:
+                num, den = fps_str.split("/")
+                fps = float(num) / float(den) if float(den) else 30.0
+            else:
+                fps = float(fps_str)
+            total_frames = int(stream.get("nb_read_packets", 0))
+            width = int(stream.get("width", 0) or 0)
+            height = int(stream.get("height", 0) or 0)
+            self.done.emit(self._row, total_frames, fps, width, height)
+        except subprocess.TimeoutExpired:
+            print(f"[warn] ffprobe timed out for {self._path}", flush=True)
+        except (json.JSONDecodeError, ValueError, KeyError) as exc:
+            print(f"[warn] ffprobe parse error for {self._path}: {exc}", flush=True)
+        except FileNotFoundError:
+            print("[warn] ffprobe not found on PATH", flush=True)
+
+
 def _extract_thumbnail(path: Path) -> Optional[QPixmap]:
     """Try to grab a frame via ffmpeg, return scaled QPixmap or None."""
     try:
@@ -171,6 +219,7 @@ class ClipPanel(QWidget):
         self._list_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._list_view.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self._list_view.clicked.connect(self._on_item_clicked)
+        self._project.clip_selected.connect(self._on_clip_selected_externally)
         layout.addWidget(self._list_view, 1)
 
         btn_row = QHBoxLayout()
@@ -207,6 +256,14 @@ class ClipPanel(QWidget):
     def _on_item_clicked(self, index) -> None:
         self._project.select_clip(index.row())
 
+    def _on_clip_selected_externally(self, row: int) -> None:
+        if row < 0:
+            self._list_view.clearSelection()
+            return
+        idx = self._project.clip_model.index(row, 0)
+        if self._list_view.currentIndex() != idx:
+            self._list_view.setCurrentIndex(idx)
+
     def _remove_selected(self) -> None:
         idx = self._list_view.currentIndex()
         if idx.isValid():
@@ -236,7 +293,7 @@ class ClipPanel(QWidget):
             self._project.clip_model.update_clip(row)
             self._project.clips_changed.emit()
             self._project.status_message.emit(f"Clip {row + 1} ready (source AVI)")
-            self._probe_video_info(clip)
+            self._start_video_info(row, clip.source_path)
             return
 
         if settings.get("mode") == IMPORT_MODE_PREFER_SOURCE:
@@ -276,13 +333,14 @@ class ClipPanel(QWidget):
     def _on_normalize_done(self, row: int, path: str) -> None:
         clip = self._project.clip_model.clip_at(row)
         if clip:
-            clip.normalized_path = Path(path)
+            out = Path(path)
+            clip.normalized_path = out
+            clip.temp_dir = out.parent
             clip.normalizing = False
             self._project.clip_model.update_clip(row)
             self._project.clips_changed.emit()
             self._project.status_message.emit(f"Clip {row + 1} ready")
-            # Probe frame count and fps
-            self._probe_video_info(clip)
+            self._start_video_info(row, out)
 
     def _on_normalize_error(self, row: int, msg: str) -> None:
         clip = self._project.clip_model.clip_at(row)
@@ -291,40 +349,21 @@ class ClipPanel(QWidget):
             self._project.clip_model.update_clip(row)
         self._project.status_message.emit(f"Error normalizing clip {row + 1}: {msg}")
 
-    def _probe_video_info(self, clip: ClipProfile) -> None:
-        """Probe frame count and fps from the normalized file."""
-        if not clip.normalized_path:
-            return
-        try:
-            result = subprocess.run(
-                [
-                    "ffprobe", "-v", "quiet",
-                    "-select_streams", "v:0",
-                    "-count_packets",
-                    "-show_entries", "stream=width,height,nb_read_packets,r_frame_rate",
-                    "-of", "json",
-                    str(clip.normalized_path),
-                ],
-                capture_output=True, text=True, timeout=10,
-            )
-            if result.returncode == 0:
-                data = json.loads(result.stdout)
-                streams = data.get("streams", [])
-                if not streams:
-                    return
-                stream = streams[0]
-                fps_str = str(stream.get("r_frame_rate", "30/1"))
-                if "/" in fps_str:
-                    num, den = fps_str.split("/")
-                    clip.fps = float(num) / float(den)
-                else:
-                    clip.fps = float(fps_str)
+    def _start_video_info(self, row: int, path: Path) -> None:
+        worker = VideoInfoWorker(path, row, self)
+        worker.done.connect(self._on_video_info_ready)
+        worker.finished.connect(worker.deleteLater)
+        self._track_worker(worker)
+        worker.start()
 
-                clip.total_frames = int(stream.get("nb_read_packets", 0))
-                clip.frame_width = int(stream.get("width", 0) or 0)
-                clip.frame_height = int(stream.get("height", 0) or 0)
-        except Exception:
-            pass
+    def _on_video_info_ready(self, row: int, total_frames: int, fps: float, width: int, height: int) -> None:
+        clip = self._project.clip_model.clip_at(row)
+        if clip:
+            clip.total_frames = total_frames
+            clip.fps = fps
+            clip.frame_width = width
+            clip.frame_height = height
+            self._project.clip_model.update_clip(row)
 
     # -- Import settings ---------------------------------------------------
 

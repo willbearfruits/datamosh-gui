@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,8 @@ class ClipProfile:
     trim_start_frame: int = 0
     trim_end_frame: int = 0  # exclusive; 0 means "use full clip"
     drop_first_keyframe_override: Optional[bool] = None
+    # Temp directory created during normalization or I-frame injection.
+    temp_dir: Optional[Path] = field(default=None, repr=False, compare=False)
 
     def label(self) -> str:
         return self.source_path.stem
@@ -43,6 +46,12 @@ class ClipProfile:
         if self.drop_first_keyframe_override is not None:
             return self.drop_first_keyframe_override
         return self.drop_first_keyframe
+
+    def cleanup(self) -> None:
+        """Delete the temp directory created during normalization or injection."""
+        if self.temp_dir and self.temp_dir.exists():
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
+            self.temp_dir = None
 
 
 class ClipListModel(QAbstractListModel):
@@ -146,7 +155,10 @@ class ClipListModel(QAbstractListModel):
         raw = data.data(self.MIME_TYPE)
         if raw.isEmpty():
             return False
-        source_row = int(bytes(raw).decode().split(",")[0])
+        try:
+            source_row = int(bytes(raw).decode().split(",")[0])
+        except (UnicodeDecodeError, ValueError, IndexError):
+            return False
         target = row if row >= 0 else self.rowCount()
         if source_row < target:
             target -= 1

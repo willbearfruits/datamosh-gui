@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
@@ -49,9 +50,9 @@ class Project(QObject):
         self._selected_row: int = -1
         self._timeline: list[TimelineItem] = []
         self._selected_timeline_index: int = -1
-        self._undo_stack: list[ProjectSnapshot] = []
-        self._redo_stack: list[ProjectSnapshot] = []
         self._history_limit = 200
+        self._undo_stack: deque[ProjectSnapshot] = deque(maxlen=self._history_limit)
+        self._redo_stack: deque[ProjectSnapshot] = deque(maxlen=self._history_limit)
         self._restoring_history = False
 
     # -- Properties --------------------------------------------------------
@@ -123,6 +124,7 @@ class Project(QObject):
             return
         if record_undo:
             self._record_undo_state()
+        clip.cleanup()
         self.clip_model.remove_clip(row)
         self.clips_changed.emit()
 
@@ -368,8 +370,6 @@ class Project(QObject):
         if self._restoring_history:
             return
         self._undo_stack.append(self._capture_snapshot())
-        if len(self._undo_stack) > self._history_limit:
-            self._undo_stack.pop(0)
         self._redo_stack.clear()
         self._emit_history_changed()
 

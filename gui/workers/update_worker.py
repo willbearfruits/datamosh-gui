@@ -19,9 +19,16 @@ class UpdateWorker(QThread):
         self._channel = channel
 
     def run(self) -> None:
-        result: UpdateResult = check_for_update(
-            current_version=self._current_version,
-            repository=self._repository,
-            channel=self._channel,
-        )
+        try:
+            result: UpdateResult = check_for_update(
+                current_version=self._current_version,
+                repository=self._repository,
+                channel=self._channel,
+            )
+        except Exception as exc:
+            result = UpdateResult(
+                current_version=self._current_version,
+                latest=None,
+                error=str(exc),
+            )
         self.finished_ok.emit(result)

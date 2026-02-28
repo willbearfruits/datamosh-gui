@@ -97,8 +97,8 @@ class SettingsPanel(QWidget):
         self._form.addWidget(self._clip_label)
 
         # Keyframe group
-        key_group = QGroupBox("Keyframes")
-        key_layout = QVBoxLayout(key_group)
+        self._key_group = QGroupBox("Keyframes")
+        key_layout = QVBoxLayout(self._key_group)
 
         self._keep_first = _LabeledSlider("Keep extra keyframes after first", 0, 50, 0)
         key_layout.addWidget(self._keep_first)
@@ -106,11 +106,11 @@ class SettingsPanel(QWidget):
         self._drop_first_kf = QCheckBox("Drop first keyframe (selected segment)")
         key_layout.addWidget(self._drop_first_kf)
 
-        self._form.addWidget(key_group)
+        self._form.addWidget(self._key_group)
 
         # Duplication group
-        dup_group = QGroupBox("Duplication")
-        dup_layout = QVBoxLayout(dup_group)
+        self._dup_group = QGroupBox("Duplication")
+        dup_layout = QVBoxLayout(self._dup_group)
 
         self._dup_count = _LabeledSlider("Duplicate count", 0, 50, 0)
         dup_layout.addWidget(self._dup_count)
@@ -118,11 +118,11 @@ class SettingsPanel(QWidget):
         self._dup_gap = _LabeledSlider("Duplicate gap (every Nth)", 1, 100, 1)
         dup_layout.addWidget(self._dup_gap)
 
-        self._form.addWidget(dup_group)
+        self._form.addWidget(self._dup_group)
 
         # Advanced group
-        adv_group = QGroupBox("Advanced")
-        adv_layout = QVBoxLayout(adv_group)
+        self._adv_group = QGroupBox("Advanced")
+        adv_layout = QVBoxLayout(self._adv_group)
 
         adv_layout.addWidget(QLabel("Keep specific keyframes (e.g. 0,5,10-12):"))
         self._keep_keys = QLineEdit()
@@ -134,7 +134,8 @@ class SettingsPanel(QWidget):
         self._drop_keys.setPlaceholderText("e.g. 3,7")
         adv_layout.addWidget(self._drop_keys)
 
-        self._form.addWidget(adv_group)
+        self._form.addWidget(self._adv_group)
+        self._set_controls_enabled(False)
 
         self._form.addStretch()
 
@@ -151,17 +152,23 @@ class SettingsPanel(QWidget):
 
     # -- Slots -------------------------------------------------------------
 
+    def _set_controls_enabled(self, enabled: bool) -> None:
+        for group in (self._key_group, self._dup_group, self._adv_group):
+            group.setEnabled(enabled)
+
     def load_clip(self, row: int) -> None:
         self._current_row = row
         clip = self._project.clip_model.clip_at(row)
         if not clip:
             self._clip_label.setText("No clip selected")
+            self._set_controls_enabled(False)
             return
 
         # If selected timeline item does not map to this source clip, fall back
         # to source-level behavior for drop-first keyframe.
         if not self._timeline_item_matches_current_clip():
             self._current_timeline_index = -1
+        self._set_controls_enabled(True)
         self._refresh_clip_label(clip.label())
 
         # Block signals while populating

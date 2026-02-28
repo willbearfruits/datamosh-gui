@@ -67,6 +67,7 @@ class RenderDialog(QDialog):
         self._worker = MoshWorker(self._project.timeline_render_clips(), Path(path), self)
         self._worker.finished_ok.connect(self._on_done)
         self._worker.error.connect(self._on_error)
+        self._worker.finished.connect(self._worker.deleteLater)
         self._worker.start()
 
     def _on_done(self, out_path: str) -> None:
@@ -79,5 +80,14 @@ class RenderDialog(QDialog):
 
     def _on_error(self, msg: str) -> None:
         self._progress.hide()
-        self._info.setText(f"Error: {msg}")
+        self._info.setText(f"Error: {msg}\n\nClick 'Choose Output & Render' to try again.")
         self._btn.setEnabled(True)
+
+    def closeEvent(self, event) -> None:
+        if self._worker and self._worker.isRunning():
+            self._worker.finished_ok.disconnect()
+            self._worker.error.disconnect()
+            if not self._worker.wait(2000):
+                self._worker.terminate()
+                self._worker.wait(300)
+        super().closeEvent(event)

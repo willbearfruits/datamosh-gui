@@ -686,15 +686,19 @@ class TimelineCanvas(QWidget):
 
     def wheelEvent(self, event: QWheelEvent) -> None:
         delta = event.angleDelta().y()
-        mouse_x = event.position().x()
-        sec_at_mouse = self._x_to_sec(mouse_x)
-
-        factor = 1.25 if delta > 0 else 1.0 / 1.25
-        self._pps = max(5.0, min(self._pps * factor, 5000.0))
-
-        self._scroll_sec = sec_at_mouse - mouse_x / self._pps
-        self._clamp_scroll()
-
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            # Zoom centered on mouse position
+            mouse_x = event.position().x()
+            sec_at_mouse = self._x_to_sec(mouse_x)
+            factor = 1.25 if delta > 0 else 1.0 / 1.25
+            self._pps = max(5.0, min(self._pps * factor, 5000.0))
+            self._scroll_sec = sec_at_mouse - mouse_x / self._pps
+            self._clamp_scroll()
+        else:
+            # Pan horizontally
+            scroll_delta = -delta / self._pps * 0.3
+            self._scroll_sec = max(0.0, self._scroll_sec + scroll_delta)
+            self._clamp_scroll()
         self.update()
         self.viewport_changed.emit()
 
@@ -787,7 +791,7 @@ class TimelineWidget(QWidget):
         self._hint_label = QLabel(
             "Drag from bin | Reorder by drag | Side toolbar or Timeline menu for edit actions"
         )
-        self._hint_label.setStyleSheet("font-size: 10px; color: #555;")
+        self._hint_label.setStyleSheet("font-size: 10px; color: #8c8c8c;")
         info_row.addWidget(self._hint_label)
         layout.addLayout(info_row)
 
@@ -1170,6 +1174,8 @@ class TimelineWidget(QWidget):
         act_inject = menu.addAction("Inject I-Frame From Media...")
         act_inject.triggered.connect(self._inject_iframe_from_media)
 
+        if not self._project.has_timeline_items():
+            act_cut.setEnabled(False)
         if self._project.selected_timeline_index < 0:
             act_drop.setEnabled(False)
             act_delete.setEnabled(False)
@@ -1241,6 +1247,7 @@ class TimelineWidget(QWidget):
             fps=out_fps if out_fps > 0 else 30.0,
             frame_width=width or 0,
             frame_height=height or 0,
+            temp_dir=generated_path.parent,
         )
         self._project.begin_undo_step()
         self._project.add_clip(clip, record_undo=False, add_to_timeline=False)

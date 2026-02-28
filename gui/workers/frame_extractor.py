@@ -48,8 +48,8 @@ class FrameExtractor(QThread):
             self._run_ffmpeg()
 
     def _run_cv2(self) -> None:
+        cap = cv2.VideoCapture(str(self._path))
         try:
-            cap = cv2.VideoCapture(str(self._path))
             if not cap.isOpened():
                 self.error.emit("Could not open video with OpenCV")
                 return
@@ -73,11 +73,12 @@ class FrameExtractor(QThread):
                 self.frame_ready.emit(idx, img)
                 idx += 1
 
-            cap.release()
             self.all_done.emit(idx)
 
         except Exception as exc:
             self.error.emit(str(exc))
+        finally:
+            cap.release()
 
     def _run_ffmpeg(self) -> None:
         try:
@@ -132,7 +133,13 @@ class FrameExtractor(QThread):
                 idx += 1
 
             proc.stdout.close()
-            proc.wait(timeout=5)
+            if self._abort:
+                proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
             self.all_done.emit(idx)
 
         except Exception as exc:
