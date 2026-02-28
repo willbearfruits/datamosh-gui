@@ -3,25 +3,40 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Datamosh GUI Downloads</title>
-  <meta name="description" content="Datamosh GUI release page with Linux, Windows, and macOS downloads.">
+  <title>Datamosh GUI — Timeline Glitch Editor</title>
+  <meta name="description" content="Timeline-based desktop editor for intentional codec destruction. Drop I-frames, duplicate P-frames, build glitch sequences. Free download for Linux, Windows, macOS.">
+  <meta property="og:title" content="Datamosh GUI — Timeline Glitch Editor">
+  <meta property="og:description" content="Timeline-based desktop editor for intentional codec destruction. Drop I-frames, duplicate P-frames, build glitch sequences.">
+  <meta property="og:image" content="assets/ui-preview.png">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&display=swap');
 
+    /* ─── Design tokens ────────────────────────────────────────────── */
     :root {
-      --bg: #06090f;
-      --panel: rgba(8, 12, 20, 0.78);
-      --panel-strong: rgba(7, 10, 16, 0.9);
-      --line: rgba(134, 226, 255, 0.24);
-      --text: #edf4ff;
-      --muted: #aab9ca;
-      --cyan: #65dfff;
-      --lime: #9cff5c;
-      --red: #ff4f64;
-      --shadow: 0 22px 60px rgba(0, 0, 0, 0.48);
+      --bg:            #06090f;
+      --bg-raise:      #090d16;
+      --panel:         rgba(8, 12, 20, 0.80);
+      --panel-strong:  rgba(7, 10, 16, 0.92);
+      --line:          rgba(101, 223, 255, 0.18);
+      --line-hard:     rgba(101, 223, 255, 0.38);
+      --text:          #edf4ff;
+      --muted:         #7a90a8;
+      --muted-bright:  #aab9ca;
+      --cyan:          #65dfff;
+      --cyan-dim:      rgba(101, 223, 255, 0.12);
+      --lime:          #9cff5c;
+      --lime-dim:      rgba(156, 255, 92, 0.10);
+      --red:           #ff4f64;
+      --red-dim:       rgba(255, 79, 100, 0.12);
+      --amber:         #ffa940;
+      --shadow:        0 24px 64px rgba(0, 0, 0, 0.54);
+      --shadow-sm:     0 8px 28px rgba(0, 0, 0, 0.44);
+      --radius:        14px;
+      --radius-sm:     8px;
     }
 
-    * { box-sizing: border-box; }
+    /* ─── Reset ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
 
     html, body {
       margin: 0;
@@ -29,20 +44,23 @@
       color: var(--text);
       font-family: "Space Grotesk", "Trebuchet MS", sans-serif;
       background: var(--bg);
+      scroll-behavior: smooth;
     }
 
-    body {
-      position: relative;
-      overflow-x: hidden;
-    }
+    body { position: relative; overflow-x: hidden; }
 
+    h1, h2, h3, h4 { margin: 0; }
+    p { margin: 0; }
+    a { color: inherit; }
+
+    /* ─── Background layer ───────────────────────────────────────────── */
     .bg-video {
       position: fixed;
       inset: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
-      filter: saturate(1.05) contrast(1.08) brightness(0.46);
+      filter: saturate(0.9) contrast(1.1) brightness(0.38);
       z-index: -3;
     }
 
@@ -51,178 +69,64 @@
       inset: 0;
       z-index: -2;
       background:
-        linear-gradient(110deg, rgba(101, 223, 255, 0.1), transparent 50%),
-        radial-gradient(circle at 80% 15%, rgba(156, 255, 92, 0.11), transparent 45%),
-        linear-gradient(180deg, rgba(3, 5, 9, 0.34), rgba(3, 5, 9, 0.9));
+        linear-gradient(115deg, rgba(101, 223, 255, 0.07) 0%, transparent 42%),
+        radial-gradient(ellipse at 82% 12%, rgba(156, 255, 92, 0.08) 0%, transparent 42%),
+        radial-gradient(ellipse at 18% 88%, rgba(255, 79, 100, 0.07) 0%, transparent 38%),
+        linear-gradient(180deg, rgba(3, 5, 9, 0.28) 0%, rgba(3, 5, 9, 0.88) 100%);
     }
 
+    /* Scanline overlay — subtle horizontal lines */
     .bg-noise {
       position: fixed;
       inset: 0;
       z-index: -1;
       pointer-events: none;
-      opacity: 0.14;
-      background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 3px);
-      mix-blend-mode: soft-light;
+      background-image: repeating-linear-gradient(
+        0deg,
+        rgba(255, 255, 255, 0.025) 0px 1px,
+        transparent 1px 4px
+      );
     }
 
+    /* ─── Layout wrapper ────────────────────────────────────────────── */
     .wrap {
-      max-width: 1100px;
+      max-width: 1120px;
       margin: 0 auto;
-      padding: 28px 20px 56px;
+      padding: 32px 20px 72px;
       display: grid;
-      gap: 18px;
-    }
-
-    .hero,
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(6px);
-    }
-
-    .hero {
-      padding: 24px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .hero::before {
-      content: "";
-      position: absolute;
-      right: -30px;
-      top: 14px;
-      width: 220px;
-      height: 12px;
-      background: repeating-linear-gradient(90deg, rgba(101, 223, 255, 0.7) 0 8px, transparent 8px 16px);
-      transform: skewX(-24deg);
-      opacity: 0.6;
-      animation: slide 6s linear infinite;
-    }
-
-    @keyframes slide {
-      0% { transform: translateX(0) skewX(-24deg); }
-      50% { transform: translateX(-26px) skewX(-24deg); }
-      100% { transform: translateX(0) skewX(-24deg); }
-    }
-
-    .release-pill {
-      display: inline-flex;
-      gap: 8px;
-      align-items: center;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 6px 11px;
-      background: rgba(7, 10, 16, 0.7);
-    }
-
-    .release-pill i {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--lime);
-      box-shadow: 0 0 14px rgba(156, 255, 92, 0.8);
-    }
-
-    h1 {
-      margin: 12px 0 8px;
-      font-size: clamp(34px, 6vw, 62px);
-      line-height: 0.95;
-      letter-spacing: -0.03em;
-    }
-
-    .hero p {
-      margin: 0;
-      color: var(--muted);
-      max-width: 720px;
-      line-height: 1.5;
-      font-size: clamp(15px, 2.5vw, 19px);
-    }
-
-    .cta {
-      margin-top: 18px;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .btn {
-      text-decoration: none;
-      border-radius: 12px;
-      padding: 10px 14px;
-      font-size: 14px;
-      font-weight: 700;
-      border: 1px solid transparent;
-      transition: transform 140ms ease, border-color 140ms ease, filter 140ms ease;
-    }
-
-    .btn:hover {
-      transform: translateY(-1px);
-      filter: brightness(1.04);
-    }
-
-    .btn.primary {
-      background: linear-gradient(130deg, var(--cyan), #b8f2ff);
-      color: #05111f;
-      border-color: rgba(255, 255, 255, 0.4);
-    }
-
-    .btn.ghost {
-      background: rgba(9, 14, 22, 0.82);
-      color: var(--text);
-      border-color: var(--line);
-    }
-
-    .showcase {
-      display: grid;
-      grid-template-columns: 1fr;
       gap: 14px;
     }
 
-    .panel {
-      padding: 14px;
-    }
-
-    .panel h2 {
-      margin: 0 0 6px;
-      font-size: 18px;
-      letter-spacing: -0.01em;
-    }
-
-    .panel p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.45;
-    }
-
-    .media {
-      margin-top: 10px;
-      border-radius: 12px;
+    /* ─── Glassmorphic base card ────────────────────────────────────── */
+    .card {
+      background: var(--panel);
       border: 1px solid var(--line);
-      width: 100%;
-      display: block;
-      background: #05080e;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
 
+    .card-strong {
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    /* ─── Signal pulse bar (reused in multiple places) ──────────────── */
     .signal {
-      margin-top: 12px;
       display: flex;
-      gap: 6px;
+      gap: 5px;
     }
 
     .signal span {
       flex: 1;
-      height: 8px;
-      border-radius: 6px;
-      background: rgba(101, 223, 255, 0.2);
+      height: 3px;
+      border-radius: 2px;
+      background: rgba(101, 223, 255, 0.12);
       position: relative;
       overflow: hidden;
     }
@@ -231,45 +135,509 @@
       content: "";
       position: absolute;
       inset: 0;
-      background: linear-gradient(90deg, var(--cyan), var(--red));
+      background: linear-gradient(90deg, transparent, var(--cyan), var(--red), transparent);
       transform: translateX(-100%);
-      animation: pulse 2.6s linear infinite;
+      animation: pulse-bar 3.2s linear infinite;
     }
+    .signal span:nth-child(2)::before { animation-delay: 0.3s; }
+    .signal span:nth-child(3)::before { animation-delay: 0.6s; }
+    .signal span:nth-child(4)::before { animation-delay: 0.9s; }
+    .signal span:nth-child(5)::before { animation-delay: 1.2s; }
+    .signal span:nth-child(6)::before { animation-delay: 1.5s; }
 
-    .signal span:nth-child(2)::before { animation-delay: 0.25s; }
-    .signal span:nth-child(3)::before { animation-delay: 0.5s; }
-    .signal span:nth-child(4)::before { animation-delay: 0.75s; }
-
-    @keyframes pulse {
-      0% { transform: translateX(-100%); }
-      50% { transform: translateX(0); }
+    @keyframes pulse-bar {
+      0%   { transform: translateX(-100%); }
       100% { transform: translateX(100%); }
     }
 
-    .downloads {
+    /* ─── Glitch text split effect ──────────────────────────────────── */
+    .glitch-wrap {
+      position: relative;
+      display: inline-block;
+    }
+
+    .glitch-wrap::before,
+    .glitch-wrap::after {
+      content: attr(data-text);
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      font-size: inherit;
+      font-weight: inherit;
+      letter-spacing: inherit;
+      line-height: inherit;
+    }
+
+    .glitch-wrap::before {
+      color: var(--cyan);
+      clip-path: polygon(0 0, 100% 0, 100% 38%, 0 38%);
+      transform: translateX(-2px);
+      opacity: 0.7;
+      animation: glitch-top 5s step-end infinite;
+    }
+
+    .glitch-wrap::after {
+      color: var(--red);
+      clip-path: polygon(0 62%, 100% 62%, 100% 100%, 0 100%);
+      transform: translateX(2px);
+      opacity: 0.6;
+      animation: glitch-bot 5s step-end infinite;
+    }
+
+    @keyframes glitch-top {
+      0%, 92%, 100% { transform: translateX(-2px); opacity: 0.7; clip-path: polygon(0 0, 100% 0, 100% 38%, 0 38%); }
+      93%            { transform: translateX(4px) skewX(-1deg); opacity: 0.9; }
+      94%            { transform: translateX(-3px); opacity: 0.5; }
+      95%            { transform: translateX(0);    opacity: 0.0; }
+      96%            { transform: translateX(-2px); opacity: 0.7; clip-path: polygon(0 15%, 100% 10%, 100% 44%, 0 49%); }
+    }
+
+    @keyframes glitch-bot {
+      0%, 92%, 100% { transform: translateX(2px); opacity: 0.6; clip-path: polygon(0 62%, 100% 62%, 100% 100%, 0 100%); }
+      93%            { transform: translateX(-4px) skewX(1deg); opacity: 0.8; }
+      94%            { transform: translateX(3px);  opacity: 0.4; }
+      95%            { transform: translateX(0);    opacity: 0.0; }
+      96%            { transform: translateX(2px);  opacity: 0.6; clip-path: polygon(0 55%, 100% 60%, 100% 100%, 0 100%); }
+    }
+
+    /* ─── Section corruption divider ────────────────────────────────── */
+    .corrupt-divider {
+      width: 100%;
+      height: 18px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 0 0;
+      opacity: 0.55;
+    }
+
+    .corrupt-divider span {
+      display: block;
+      height: 1px;
+      background: var(--cyan);
+      flex: 1;
+    }
+
+    .corrupt-divider span:nth-child(3n)   { height: 3px; background: var(--red); opacity: 0.9; }
+    .corrupt-divider span:nth-child(5n)   { height: 2px; background: var(--lime); }
+    .corrupt-divider span:nth-child(7n)   { flex: 3; }
+    .corrupt-divider span:nth-child(11n)  { height: 1px; opacity: 0.3; }
+    .corrupt-divider span:nth-child(13n)  { flex: 0 0 4px; background: var(--red); height: 4px; }
+
+    /* ─── Hero ──────────────────────────────────────────────────────── */
+    .hero {
+      padding: 36px 32px 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Animated signal bar in hero top-right corner */
+    .hero-signal-bar {
+      position: absolute;
+      right: -20px;
+      top: 22px;
+      width: 260px;
+      height: 9px;
+      background: repeating-linear-gradient(
+        90deg,
+        rgba(101, 223, 255, 0.65) 0px 10px,
+        transparent 10px 18px
+      );
+      transform: skewX(-26deg);
+      opacity: 0.45;
+      animation: hero-bar-slide 7s linear infinite;
+    }
+
+    .hero-signal-bar-2 {
+      position: absolute;
+      right: -10px;
+      top: 36px;
+      width: 180px;
+      height: 4px;
+      background: repeating-linear-gradient(
+        90deg,
+        rgba(156, 255, 92, 0.55) 0px 6px,
+        transparent 6px 12px
+      );
+      transform: skewX(-26deg);
+      opacity: 0.40;
+      animation: hero-bar-slide 5s linear infinite reverse;
+    }
+
+    @keyframes hero-bar-slide {
+      0%   { transform: skewX(-26deg) translateX(0); }
+      50%  { transform: skewX(-26deg) translateX(-30px); }
+      100% { transform: skewX(-26deg) translateX(0); }
+    }
+
+    .release-pill {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      color: var(--muted-bright);
+      border: 1px solid var(--line-hard);
+      border-radius: 4px;
+      padding: 5px 10px;
+      background: rgba(7, 10, 16, 0.75);
+    }
+
+    .release-pill .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--lime);
+      box-shadow: 0 0 10px rgba(156, 255, 92, 0.85);
+      animation: dot-pulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes dot-pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(156, 255, 92, 0.85); }
+      50%       { opacity: 0.5; box-shadow: 0 0 4px rgba(156, 255, 92, 0.3); }
+    }
+
+    h1 {
+      margin: 14px 0 10px;
+      font-size: clamp(40px, 7vw, 72px);
+      line-height: 0.92;
+      letter-spacing: -0.035em;
+      font-weight: 700;
+    }
+
+    .hero-tagline {
+      color: var(--muted-bright);
+      max-width: 680px;
+      line-height: 1.55;
+      font-size: clamp(15px, 2.2vw, 18px);
+      margin-top: 6px;
+      font-weight: 400;
+    }
+
+    .hero-tagline strong {
+      color: var(--cyan);
+      font-weight: 500;
+    }
+
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .meta-stat {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .meta-stat strong {
+      display: block;
+      font-size: 16px;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 700;
+    }
+
+    .meta-divider {
+      width: 1px;
+      height: 28px;
+      background: var(--line-hard);
+    }
+
+    .cta {
+      margin-top: 24px;
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      text-decoration: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      letter-spacing: 0.01em;
+      transition: transform 120ms cubic-bezier(0.2, 0, 0, 1),
+                  border-color 120ms ease,
+                  filter 120ms ease,
+                  box-shadow 120ms ease;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.06);
+    }
+
+    .btn.primary {
+      background: linear-gradient(130deg, var(--cyan) 0%, #a8eeff 100%);
+      color: #04111f;
+      border-color: rgba(255, 255, 255, 0.35);
+      box-shadow: 0 0 24px rgba(101, 223, 255, 0.22);
+    }
+
+    .btn.primary:hover {
+      box-shadow: 0 0 36px rgba(101, 223, 255, 0.38);
+    }
+
+    .btn.ghost {
+      background: rgba(9, 14, 24, 0.85);
+      color: var(--text);
+      border-color: var(--line-hard);
+    }
+
+    .btn.ghost:hover {
+      border-color: rgba(101, 223, 255, 0.5);
+    }
+
+    .btn.lime {
+      background: rgba(156, 255, 92, 0.10);
+      color: var(--lime);
+      border-color: rgba(156, 255, 92, 0.35);
+    }
+
+    .btn.lime:hover {
+      background: rgba(156, 255, 92, 0.16);
+      border-color: rgba(156, 255, 92, 0.6);
+    }
+
+    /* ─── Two-col showcase ──────────────────────────────────────────── */
+    .showcase {
       display: grid;
+      grid-template-columns: 1fr;
       gap: 14px;
     }
 
-    .downloads-header {
-      padding: 18px;
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: var(--panel-strong);
-      box-shadow: var(--shadow);
+    .panel-inner {
+      padding: 20px;
     }
 
-    .downloads-header h2 {
-      margin: 0 0 6px;
-      font-size: 22px;
-      letter-spacing: -0.02em;
-    }
-
-    .downloads-header p {
-      margin: 0;
+    .panel-label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
       color: var(--muted);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .panel-label::before {
+      content: "";
+      display: inline-block;
+      width: 16px;
+      height: 1px;
+      background: var(--cyan);
+      opacity: 0.6;
+    }
+
+    .panel-label.lime-accent::before { background: var(--lime); }
+    .panel-label.red-accent::before  { background: var(--red); }
+
+    .panel-h2 {
+      font-size: 18px;
+      letter-spacing: -0.015em;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .panel-desc {
+      color: var(--muted-bright);
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+
+    .media-frame {
+      margin-top: 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+      width: 100%;
+      display: block;
+      background: #04060d;
+    }
+
+    /* ─── Features grid ─────────────────────────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .feat {
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: rgba(8, 12, 20, 0.70);
+      backdrop-filter: blur(6px);
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      transition: border-color 140ms ease;
+    }
+
+    .feat:hover { border-color: var(--line-hard); }
+
+    .feat-icon {
+      flex-shrink: 0;
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      background: var(--cyan-dim);
+      border: 1px solid rgba(101, 223, 255, 0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .feat-icon.lime { background: var(--lime-dim); border-color: rgba(156, 255, 92, 0.22); }
+    .feat-icon.red  { background: var(--red-dim);  border-color: rgba(255, 79, 100, 0.22); }
+    .feat-icon.amber { background: rgba(255, 169, 64, 0.10); border-color: rgba(255, 169, 64, 0.22); }
+
+    .feat-title {
       font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 3px;
+    }
+
+    .feat-body {
+      font-size: 13px;
+      color: var(--muted-bright);
       line-height: 1.45;
+    }
+
+    /* ─── What's new — changelog timeline ───────────────────────────── */
+    .changelog {
+      position: relative;
+      padding-left: 28px;
+      display: grid;
+      gap: 0;
+    }
+
+    .changelog::before {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 8px;
+      bottom: 8px;
+      width: 1px;
+      background: linear-gradient(
+        to bottom,
+        var(--cyan) 0%,
+        rgba(101, 223, 255, 0.3) 60%,
+        transparent 100%
+      );
+    }
+
+    .cl-entry {
+      position: relative;
+      padding: 0 0 18px;
+    }
+
+    .cl-entry:last-child { padding-bottom: 0; }
+
+    .cl-entry::before {
+      content: "";
+      position: absolute;
+      left: -25px;
+      top: 5px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--cyan);
+      border: 1px solid rgba(101, 223, 255, 0.5);
+      box-shadow: 0 0 8px rgba(101, 223, 255, 0.5);
+    }
+
+    .cl-entry.fix::before  { background: var(--lime); border-color: rgba(156, 255, 92, 0.5); box-shadow: 0 0 8px rgba(156, 255, 92, 0.4); }
+    .cl-entry.perf::before { background: var(--amber); border-color: rgba(255, 169, 64, 0.5); box-shadow: 0 0 8px rgba(255, 169, 64, 0.4); }
+    .cl-entry.ux::before   { background: var(--cyan); }
+
+    .cl-tag {
+      display: inline-block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      border-radius: 3px;
+      padding: 2px 6px;
+      margin-bottom: 4px;
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      border: 1px solid rgba(101, 223, 255, 0.25);
+    }
+
+    .cl-entry.fix .cl-tag   { background: var(--lime-dim); color: var(--lime); border-color: rgba(156, 255, 92, 0.25); }
+    .cl-entry.perf .cl-tag  { background: rgba(255, 169, 64, 0.10); color: var(--amber); border-color: rgba(255, 169, 64, 0.25); }
+
+    .cl-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.3;
+    }
+
+    .cl-body {
+      font-size: 12.5px;
+      color: var(--muted-bright);
+      margin-top: 2px;
+      line-height: 1.45;
+    }
+
+    /* ─── Downloads ─────────────────────────────────────────────────── */
+    .dl-header {
+      padding: 22px 24px 18px;
+    }
+
+    .section-label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-label::before {
+      content: "";
+      display: inline-block;
+      width: 20px;
+      height: 1px;
+      background: var(--cyan);
+      opacity: 0.55;
+    }
+
+    .section-h2 {
+      font-size: clamp(20px, 3.5vw, 28px);
+      letter-spacing: -0.025em;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .section-desc {
+      color: var(--muted-bright);
+      font-size: 14px;
+      line-height: 1.5;
+      max-width: 640px;
     }
 
     .platforms {
@@ -279,65 +647,290 @@
     }
 
     .platform {
-      border-radius: 16px;
+      border-radius: var(--radius);
       border: 1px solid var(--line);
       background: var(--panel-strong);
-      box-shadow: var(--shadow);
-      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 20px;
+      transition: border-color 140ms ease;
     }
 
-    .platform h3 {
-      margin: 0 0 8px;
-      font-size: 18px;
+    .platform:hover { border-color: var(--line-hard); }
+
+    .plat-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .plat-icon {
+      font-size: 20px;
+      line-height: 1;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      background: var(--cyan-dim);
+      border: 1px solid rgba(101, 223, 255, 0.20);
+    }
+
+    .plat-icon.win { background: rgba(0, 174, 255, 0.10); border-color: rgba(0, 174, 255, 0.22); }
+    .plat-icon.mac { background: rgba(180, 180, 180, 0.08); border-color: rgba(180, 180, 180, 0.20); }
+
+    .plat-title {
+      font-size: 17px;
+      font-weight: 700;
       letter-spacing: -0.01em;
     }
 
-    .platform p {
-      margin: 0 0 10px;
+    .plat-sub {
+      font-size: 12px;
       color: var(--muted);
-      font-size: 14px;
-      line-height: 1.42;
+      margin-top: 1px;
     }
 
-    .stack {
+    .dl-stack {
       display: grid;
-      gap: 8px;
+      gap: 7px;
     }
 
-    .stack a {
+    .dl-link {
       text-decoration: none;
       color: var(--text);
       font-family: "IBM Plex Mono", monospace;
-      font-size: 13px;
-      border-radius: 10px;
-      border: 1px solid rgba(134, 226, 255, 0.28);
-      background: rgba(6, 10, 16, 0.75);
-      padding: 9px 10px;
-    }
-
-    .stack a:hover {
-      border-color: rgba(156, 255, 92, 0.55);
-    }
-
-    .footer {
-      text-align: center;
-      color: var(--muted);
       font-size: 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(101, 223, 255, 0.18);
+      background: rgba(6, 9, 15, 0.80);
+      padding: 9px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: border-color 120ms ease, background 120ms ease;
+    }
+
+    .dl-link:hover {
+      border-color: rgba(156, 255, 92, 0.45);
+      background: rgba(156, 255, 92, 0.05);
+    }
+
+    .dl-link .dl-arrow {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--muted);
+      transition: color 120ms ease, transform 120ms ease;
+    }
+
+    .dl-link:hover .dl-arrow {
+      color: var(--lime);
+      transform: translateX(2px);
+    }
+
+    .dl-link .dl-badge {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 3px;
+      padding: 1px 5px;
+      flex-shrink: 0;
+    }
+
+    .dl-link.checksum {
+      border-color: rgba(255, 255, 255, 0.08);
+      opacity: 0.7;
+    }
+
+    .dl-link.checksum:hover { border-color: rgba(255, 255, 255, 0.22); opacity: 1; }
+
+    /* ─── Keyboard shortcuts ────────────────────────────────────────── */
+    .shortcuts-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+
+    .shortcut-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 5px;
+      border: 1px solid transparent;
+      transition: border-color 100ms ease;
+    }
+
+    .shortcut-row:hover { border-color: var(--line); background: rgba(8, 12, 20, 0.5); }
+
+    .shortcut-key {
+      flex-shrink: 0;
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+      min-width: 120px;
+    }
+
+    .key {
       font-family: "IBM Plex Mono", monospace;
-      opacity: 0.9;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--cyan);
+      background: rgba(101, 223, 255, 0.09);
+      border: 1px solid rgba(101, 223, 255, 0.28);
+      border-radius: 4px;
+      padding: 2px 7px;
+      line-height: 1.5;
+      letter-spacing: 0.04em;
+    }
+
+    .key-sep {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .shortcut-desc {
+      font-size: 13px;
+      color: var(--muted-bright);
+      line-height: 1.4;
+    }
+
+    .shortcuts-group-label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      color: var(--muted);
+      margin: 14px 0 6px;
+    }
+
+    .shortcuts-group-label:first-child { margin-top: 0; }
+
+    /* ─── CLI block ─────────────────────────────────────────────────── */
+    .cli-block {
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(101, 223, 255, 0.18);
+      background: #030508;
+      padding: 20px 22px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13px;
+      line-height: 1.75;
+      overflow-x: auto;
+    }
+
+    .cli-line { display: block; }
+    .cli-prompt  { color: var(--lime); user-select: none; }
+    .cli-cmd     { color: var(--text); }
+    .cli-flag    { color: var(--cyan); }
+    .cli-arg     { color: var(--amber); }
+    .cli-comment { color: var(--muted); font-style: italic; }
+
+    .cli-block + .cli-caption {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 10px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    /* ─── Support section ───────────────────────────────────────────── */
+    .support-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .support-btn {
+      text-decoration: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      transition: transform 120ms ease, filter 120ms ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .support-btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
+
+    .support-btn.patreon {
+      background: rgba(255, 66, 77, 0.12);
+      color: #ff5a68;
+      border-color: rgba(255, 66, 77, 0.35);
+    }
+
+    .support-btn.paypal {
+      background: rgba(0, 157, 224, 0.10);
+      color: #5ac8fa;
+      border-color: rgba(0, 157, 224, 0.30);
+    }
+
+    /* ─── Footer ────────────────────────────────────────────────────── */
+    .footer {
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .footer-left {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .footer-right {
+      display: flex;
+      gap: 14px;
+    }
+
+    .footer-link {
+      text-decoration: none;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      color: var(--muted);
+      transition: color 120ms ease;
+    }
+
+    .footer-link:hover { color: var(--cyan); }
+
+    /* ─── Responsive ────────────────────────────────────────────────── */
+    @media (min-width: 600px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .shortcuts-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
     @media (min-width: 860px) {
-      .showcase {
-        grid-template-columns: 1.1fr 0.9fr;
-      }
-      .platforms {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
+      .showcase { grid-template-columns: 1.15fr 0.85fr; }
+      .platforms { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .features-grid { grid-template-columns: repeat(3, 1fr); }
+      .shortcuts-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 540px) {
+      .hero { padding: 24px 18px 22px; }
+      .panel-inner { padding: 16px; }
+      .dl-header { padding: 18px 16px; }
+      .platform { padding: 16px; }
+      .meta-divider { display: none; }
     }
   </style>
 </head>
 <body>
+
+  <!-- Background layer -->
   <video class="bg-video" autoplay muted loop playsinline poster="assets/ui-preview.png">
     <source src="assets/preview-bg.mp4" type="video/mp4">
   </video>
@@ -345,86 +938,610 @@
   <div class="bg-noise"></div>
 
   <main class="wrap">
-    <section class="hero">
-      <span class="release-pill"><i></i> current release | v1.1.4</span>
-      <h1>Datamosh GUI</h1>
-      <p>
-        Timeline-first desktop editor for controlled codec destruction.
-        Cut hard, inject I-frames, duplicate P-frames, and build intentional glitch flow.
-      </p>
-      <div class="cta">
-        <a class="btn primary" href="https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.4">Open v1.1.4 Release</a>
-        <a class="btn ghost" href="https://github.com/willbearfruits/datamosh-gui">GitHub</a>
-        <a class="btn ghost" href="https://www.patreon.com/Seriousshit">Patreon</a>
-        <a class="btn ghost" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=dogme84%40gmail.com&currency_code=USD">PayPal</a>
-      </div>
-    </section>
 
+    <!-- ═══════════════════════════════════════════════════
+         HERO
+    ════════════════════════════════════════════════════ -->
+    <header class="card hero">
+      <div class="hero-signal-bar"></div>
+      <div class="hero-signal-bar-2"></div>
+
+      <span class="release-pill"><span class="dot"></span> latest release &nbsp;|&nbsp; v1.1.5</span>
+
+      <h1>
+        <span class="glitch-wrap" data-text="Datamosh">Datamosh</span><br>
+        <span style="color: var(--cyan);">GUI</span>
+      </h1>
+
+      <p class="hero-tagline">
+        Timeline-first desktop editor for <strong>controlled codec destruction</strong>.
+        Cut hard. Drop I-frames. Smear motion with duplicate P-frames.
+        Build intentional glitch sequences and render the chaos.
+      </p>
+
+      <div class="hero-meta">
+        <div class="meta-stat">
+          Platform
+          <strong>Linux · Win · macOS</strong>
+        </div>
+        <div class="meta-divider"></div>
+        <div class="meta-stat">
+          License
+          <strong>Free / Open Source</strong>
+        </div>
+        <div class="meta-divider"></div>
+        <div class="meta-stat">
+          Format
+          <strong>Xvid AVI</strong>
+        </div>
+      </div>
+
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.5">
+          Download v1.1.5
+        </a>
+        <a class="btn ghost" href="https://github.com/willbearfruits/datamosh-gui">
+          GitHub
+        </a>
+        <a class="btn lime" href="https://www.patreon.com/Seriousshit">
+          Patreon
+        </a>
+        <a class="btn ghost" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=dogme84%40gmail.com&currency_code=USD">
+          PayPal
+        </a>
+      </div>
+
+      <div class="signal" style="margin-top: 22px;">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+    </header>
+
+    <!-- ═══════════════════════════════════════════════════
+         SHOWCASE — screenshot + sample video
+    ════════════════════════════════════════════════════ -->
     <section class="showcase">
-      <article class="panel">
-        <h2>Interface Preview</h2>
-        <p>Current timeline UI with clip-level control and edit-focused layout.</p>
-        <img class="media" src="assets/ui-preview.png" alt="Datamosh GUI screenshot">
-        <div class="signal"><span></span><span></span><span></span><span></span></div>
+      <article class="card">
+        <div class="panel-inner">
+          <div class="panel-label">Interface</div>
+          <div class="panel-h2">Timeline Editor</div>
+          <p class="panel-desc">
+            Per-clip control over I-frame dropping, P-frame duplication, and keyframe injection.
+            NLE-style layout with live preview and undo/redo.
+          </p>
+          <img class="media-frame" src="assets/ui-preview.png" alt="Datamosh GUI — timeline editor screenshot">
+        </div>
       </article>
 
-      <article class="panel">
-        <h2>Glitch Loop + Sample</h2>
-        <p>Background source uses the current rendered sample loop. Download source media below.</p>
-        <video class="media" autoplay muted loop playsinline>
-          <source src="assets/preview-bg.mp4" type="video/mp4">
-        </video>
-        <div class="stack" style="margin-top:10px;">
-          <a href="https://github.com/willbearfruits/datamosh-gui/blob/main/assets/showcase/example-1.avi">Download Example AVI</a>
-          <a href="https://github.com/willbearfruits/datamosh-gui/blob/main/assets/showcase/ui-preview.png">Download Screenshot</a>
+      <article class="card">
+        <div class="panel-inner">
+          <div class="panel-label lime-accent">Output sample</div>
+          <div class="panel-h2">Rendered Glitch Loop</div>
+          <p class="panel-desc">
+            Live example of output rendered through the P-frame smear pipeline.
+            Source imported, normalised to Xvid AVI, moshed, rendered.
+          </p>
+          <video class="media-frame" autoplay muted loop playsinline>
+            <source src="assets/preview-bg.mp4" type="video/mp4">
+          </video>
         </div>
       </article>
     </section>
 
-    <section class="downloads">
-      <header class="downloads-header">
-        <h2>Downloads</h2>
-        <p>
-          Portable packages, installers, and checksums for Linux, Windows, and macOS.
-          If an asset is still processing, check the release page directly.
+    <!-- corruption divider -->
+    <div class="corrupt-divider" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         FEATURES
+    ════════════════════════════════════════════════════ -->
+    <section class="card">
+      <div class="panel-inner">
+        <div class="section-label">Capabilities</div>
+        <div class="section-h2">What it does</div>
+        <p class="section-desc" style="margin-bottom: 20px;">
+          Full creative control over the AVI bitstream — no decoding, no re-encoding,
+          pure binary chunk manipulation at codec level.
         </p>
-      </header>
 
-      <div class="platforms">
-        <article class="platform">
-          <h3>Linux</h3>
-          <p>Portable tarball, Debian installer, and AppImage.</p>
-          <div class="stack">
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.4/Datamosh-1.1.4-linux-portable.tar.gz">Datamosh-1.1.4-linux-portable.tar.gz</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.4/Datamosh-1.1.4-linux-installer.deb">Datamosh-1.1.4-linux-installer.deb</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.4/Datamosh-1.1.4-linux-x86_64.AppImage">Datamosh-1.1.4-linux-x86_64.AppImage</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.4/SHA256SUMS-linux.txt">SHA256SUMS-linux.txt</a>
+        <div class="features-grid">
+          <div class="feat">
+            <div class="feat-icon">&#9776;</div>
+            <div>
+              <div class="feat-title">Multi-clip timeline</div>
+              <div class="feat-body">Sequence any number of clips on an NLE-style timeline. Each segment has independent mosh settings.</div>
+            </div>
           </div>
-        </article>
 
-        <article class="platform">
-          <h3>Windows</h3>
-          <p>Portable zip and installer exe.</p>
-          <div class="stack">
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.4/Datamosh-1.1.4-windows-portable.zip">Datamosh-1.1.4-windows-portable.zip</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.4/Datamosh-1.1.4-windows-installer.exe">Datamosh-1.1.4-windows-installer.exe</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.4/SHA256SUMS-windows.txt">SHA256SUMS-windows.txt</a>
+          <div class="feat">
+            <div class="feat-icon red">&#9888;</div>
+            <div>
+              <div class="feat-title">Drop I-frames</div>
+              <div class="feat-body">Remove keyframes at clip boundaries to let compression bleed across cuts. The core datamosh operation.</div>
+            </div>
           </div>
-        </article>
 
-        <article class="platform">
-          <h3>macOS</h3>
-          <p>Portable zip and dmg installer.</p>
-          <div class="stack">
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.4/Datamosh-1.1.4-macos-portable.zip">Datamosh-1.1.4-macos-portable.zip</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.4/Datamosh-1.1.4-macos-installer.dmg">Datamosh-1.1.4-macos-installer.dmg</a>
-            <a href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.4/SHA256SUMS-macos.txt">SHA256SUMS-macos.txt</a>
+          <div class="feat">
+            <div class="feat-icon lime">&#8734;</div>
+            <div>
+              <div class="feat-title">Duplicate P-frames</div>
+              <div class="feat-body">Repeat delta frames to smear motion, freeze movement artifacts, and create motion blur-like trails.</div>
+            </div>
           </div>
-        </article>
+
+          <div class="feat">
+            <div class="feat-icon">&#9654;</div>
+            <div>
+              <div class="feat-title">Live preview</div>
+              <div class="feat-body">300 ms debounced re-mosh pipeline. See the glitch output update in real time as you adjust settings.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-icon amber">&#8635;</div>
+            <div>
+              <div class="feat-title">Full undo / redo</div>
+              <div class="feat-body">Every clip operation is tracked in an O(1) deque-backed undo stack. Nothing is permanent.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-icon lime">&#8644;</div>
+            <div>
+              <div class="feat-title">Drag and reorder</div>
+              <div class="feat-body">Drag clips in the panel, split at playhead, rearrange sequences. Clip list and timeline stay in sync.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-icon">&#8645;</div>
+            <div>
+              <div class="feat-title">Import any format</div>
+              <div class="feat-body">Anything ffmpeg reads gets normalised to Xvid AVI automatically on import. No manual conversion.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-icon red">&#9998;</div>
+            <div>
+              <div class="feat-title">Per-clip control</div>
+              <div class="feat-body">Keep first frame, set duplicate count and gap, toggle keyframe drop — all independently per segment.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-icon amber">&#9654;&#9474;</div>
+            <div>
+              <div class="feat-title">CLI standalone</div>
+              <div class="feat-body">The mosh engine is a plain Python script. Use <code style="color: var(--cyan); font-family: IBM Plex Mono, monospace; font-size: 11px;">mosh.py</code> directly in shell pipelines without the GUI.</div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <p class="footer">Datamosh GUI | timeline compression art editor</p>
+    <!-- corruption divider -->
+    <div class="corrupt-divider" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         WHAT'S NEW — v1.1.5 changelog timeline
+    ════════════════════════════════════════════════════ -->
+    <section class="showcase" style="grid-template-columns: 1fr;">
+      <article class="card">
+        <div class="panel-inner">
+          <div class="section-label">Changelog</div>
+          <div class="section-h2">What's new in v1.1.5</div>
+          <p class="section-desc" style="margin-bottom: 22px;">
+            Stability, resource hygiene, and interaction fixes across all platforms.
+          </p>
+
+          <div class="changelog">
+            <div class="cl-entry fix">
+              <span class="cl-tag">perf</span>
+              <div class="cl-title">No more /tmp bloat</div>
+              <div class="cl-body">Temporary directories created during import are now cleaned up when a clip is removed from the project.</div>
+            </div>
+
+            <div class="cl-entry fix">
+              <span class="cl-tag">ux</span>
+              <div class="cl-title">Background video probing</div>
+              <div class="cl-body">Video metadata is probed off the main thread. The UI no longer freezes during import of large files.</div>
+            </div>
+
+            <div class="cl-entry">
+              <span class="cl-tag">ux</span>
+              <div class="cl-title">Scroll wheel pans timeline</div>
+              <div class="cl-body">Scroll wheel now pans the timeline horizontally. Ctrl + scroll wheel zooms. More natural NLE behavior.</div>
+            </div>
+
+            <div class="cl-entry">
+              <span class="cl-tag">ux</span>
+              <div class="cl-title">Clip list syncs on timeline click</div>
+              <div class="cl-body">Clicking a clip block in the timeline now also highlights the corresponding entry in the clip list panel.</div>
+            </div>
+
+            <div class="cl-entry">
+              <span class="cl-tag">ux</span>
+              <div class="cl-title">Settings panel locked when no clip selected</div>
+              <div class="cl-body">The settings panel is now disabled when no clip is selected, preventing stray changes from being applied.</div>
+            </div>
+
+            <div class="cl-entry fix">
+              <span class="cl-tag">fix</span>
+              <div class="cl-title">UpdateWorker crash fix</div>
+              <div class="cl-body">Resolved a race condition in the update worker that caused crashes when switching clips rapidly.</div>
+            </div>
+
+            <div class="cl-entry fix">
+              <span class="cl-tag">fix</span>
+              <div class="cl-title">OpenCV handle leak (Windows)</div>
+              <div class="cl-body">Fixed a file handle leak in the frame extractor on Windows that accumulated open handles over long sessions.</div>
+            </div>
+
+            <div class="cl-entry fix">
+              <span class="cl-tag">fix</span>
+              <div class="cl-title">Render dialog stops worker on close</div>
+              <div class="cl-body">Closing the render dialog now properly terminates the background render worker instead of leaving it orphaned.</div>
+            </div>
+
+            <div class="cl-entry perf">
+              <span class="cl-tag">perf</span>
+              <div class="cl-title">Undo stack O(1) with deque</div>
+              <div class="cl-body">The undo history is now backed by a bounded deque, eliminating memory growth with long sessions.</div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- corruption divider -->
+    <div class="corrupt-divider" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         KEYBOARD SHORTCUTS
+    ════════════════════════════════════════════════════ -->
+    <section class="card">
+      <div class="panel-inner">
+        <div class="section-label">Reference</div>
+        <div class="section-h2">Keyboard shortcuts</div>
+        <p class="section-desc" style="margin-bottom: 20px;">
+          All shortcuts are global unless noted. Use them to stay in flow.
+        </p>
+
+        <div class="shortcuts-grid">
+          <div>
+            <div class="shortcuts-group-label">Playback</div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">Space</span></div>
+              <div class="shortcut-desc">Play / Pause</div>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">&#8592;</span> <span class="key-sep">/</span> <span class="key">&#8594;</span></div>
+              <div class="shortcut-desc">Step one frame</div>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">Home</span></div>
+              <div class="shortcut-desc">Jump to start</div>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">End</span></div>
+              <div class="shortcut-desc">Jump to end</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="shortcuts-group-label">Edit</div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">Z</span></div>
+              <div class="shortcut-desc">Undo</div>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">Y</span></div>
+              <div class="shortcut-desc">Redo</div>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">Del</span></div>
+              <div class="shortcut-desc">Remove selected clip</div>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">I</span></div>
+              <div class="shortcut-desc">Drop first I-frame on clip</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="shortcuts-group-label">File</div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">O</span></div>
+              <div class="shortcut-desc">Open / import clip</div>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">R</span></div>
+              <div class="shortcut-desc">Render output</div>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">Q</span></div>
+              <div class="shortcut-desc">Quit</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="shortcuts-group-label">Timeline</div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">Scroll</span></div>
+              <div class="shortcut-desc">Zoom timeline in / out</div>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">Scroll</span></div>
+              <div class="shortcut-desc">Pan timeline</div>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">Middle click</span></div>
+              <div class="shortcut-desc">Pan timeline</div>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut-key"><span class="key">S</span></div>
+              <div class="shortcut-desc">Split clip at playhead</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- corruption divider -->
+    <div class="corrupt-divider" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         CLI
+    ════════════════════════════════════════════════════ -->
+    <section class="card">
+      <div class="panel-inner">
+        <div class="section-label">CLI engine</div>
+        <div class="section-h2">Use without the GUI</div>
+        <p class="section-desc" style="margin-bottom: 18px;">
+          The mosh engine is a self-contained Python script.
+          Drop it into any pipeline — no GUI dependencies required.
+        </p>
+
+        <div class="cli-block">
+          <span class="cli-line">
+            <span class="cli-comment"># basic datamosh — drop I-frames, keep first frame</span>
+          </span>
+          <span class="cli-line">
+            <span class="cli-prompt">$&nbsp;</span>
+            <span class="cli-cmd">python3 mosh.py</span>
+            <span class="cli-arg"> input.avi output.avi</span>
+            <span class="cli-flag"> --keep-first 1</span>
+          </span>
+          <span class="cli-line">&nbsp;</span>
+          <span class="cli-line">
+            <span class="cli-comment"># duplicate P-frames for motion smear</span>
+          </span>
+          <span class="cli-line">
+            <span class="cli-prompt">$&nbsp;</span>
+            <span class="cli-cmd">python3 mosh.py</span>
+            <span class="cli-arg"> input.avi output.avi</span>
+            <span class="cli-flag"> --duplicate-count 8 --duplicate-gap 3</span>
+          </span>
+          <span class="cli-line">&nbsp;</span>
+          <span class="cli-line">
+            <span class="cli-comment"># normalise any format to Xvid AVI first</span>
+          </span>
+          <span class="cli-line">
+            <span class="cli-prompt">$&nbsp;</span>
+            <span class="cli-cmd">python3 mosh.py</span>
+            <span class="cli-arg"> input.mp4 output.avi</span>
+            <span class="cli-flag"> --normalize --keep-first 1 --drop-keyframe</span>
+          </span>
+        </div>
+
+        <p class="cli-caption">
+          Requires ffmpeg + ffprobe on PATH. Output is always Xvid AVI.
+        </p>
+      </div>
+    </section>
+
+    <!-- corruption divider -->
+    <div class="corrupt-divider" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         DOWNLOADS
+    ════════════════════════════════════════════════════ -->
+    <section class="card-strong" id="downloads">
+      <div class="dl-header">
+        <div class="section-label">v1.1.5</div>
+        <div class="section-h2">Downloads</div>
+        <p class="section-desc">
+          Portable packages, installers, and SHA-256 checksums.
+          Verify checksums before running any installer.
+        </p>
+      </div>
+
+      <div style="padding: 0 20px 20px;">
+        <div class="platforms">
+
+          <!-- Linux -->
+          <article class="platform">
+            <div class="plat-head">
+              <div class="plat-icon">&#127823;</div>
+              <div>
+                <div class="plat-title">Linux</div>
+                <div class="plat-sub">x86_64 &mdash; glibc 2.35+</div>
+              </div>
+            </div>
+            <div class="dl-stack">
+              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-linux-x86_64.AppImage">
+                <span class="dl-badge">AppImage</span>
+                Datamosh-1.1.5-linux-x86_64.AppImage
+                <span class="dl-arrow">&#8594;</span>
+              </a>
+              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-linux-installer.deb">
+                <span class="dl-badge">.deb</span>
+                Datamosh-1.1.5-linux-installer.deb
+                <span class="dl-arrow">&#8594;</span>
+              </a>
+              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-linux-portable.tar.gz">
+                <span class="dl-badge">tar.gz</span>
+                Datamosh-1.1.5-linux-portable.tar.gz
+                <span class="dl-arrow">&#8594;</span>
+              </a>
+              <a class="dl-link checksum" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/SHA256SUMS-linux.txt">
+                SHA256SUMS-linux.txt
+                <span class="dl-arrow">&#8594;</span>
+              </a>
+            </div>
+          </article>
+
+          <!-- Windows -->
+          <article class="platform">
+            <div class="plat-head">
+              <div class="plat-icon win">&#11036;</div>
+              <div>
+                <div class="plat-title">Windows</div>
+                <div class="plat-sub">Windows 10 / 11 &mdash; x64</div>
+              </div>
+            </div>
+            <div class="dl-stack">
+              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-windows-installer.exe">
+                <span class="dl-badge">.exe</span>
+                Datamosh-1.1.5-windows-installer.exe
+                <span class="dl-arrow">&#8594;</span>
+              </a>
+              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-windows-portable.zip">
+                <span class="dl-badge">.zip</span>
+                Datamosh-1.1.5-windows-portable.zip
+                <span class="dl-arrow">&#8594;</span>
+              </a>
+              <a class="dl-link checksum" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/SHA256SUMS-windows.txt">
+                SHA256SUMS-windows.txt
+                <span class="dl-arrow">&#8594;</span>
+              </a>
+            </div>
+          </article>
+
+          <!-- macOS -->
+          <article class="platform">
+            <div class="plat-head">
+              <div class="plat-icon mac">&#63743;</div>
+              <div>
+                <div class="plat-title">macOS</div>
+                <div class="plat-sub">macOS 12+ &mdash; Apple Silicon &amp; Intel</div>
+              </div>
+            </div>
+            <div class="dl-stack">
+              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-macos-installer.dmg">
+                <span class="dl-badge">.dmg</span>
+                Datamosh-1.1.5-macos-installer.dmg
+                <span class="dl-arrow">&#8594;</span>
+              </a>
+              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-macos-portable.zip">
+                <span class="dl-badge">.zip</span>
+                Datamosh-1.1.5-macos-portable.zip
+                <span class="dl-arrow">&#8594;</span>
+              </a>
+              <a class="dl-link checksum" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/SHA256SUMS-macos.txt">
+                SHA256SUMS-macos.txt
+                <span class="dl-arrow">&#8594;</span>
+              </a>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <div style="padding: 0 20px 16px;">
+        <div class="signal">
+          <span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════
+         SUPPORT
+    ════════════════════════════════════════════════════ -->
+    <section class="card">
+      <div class="panel-inner">
+        <div class="section-label">Support the project</div>
+        <div class="section-h2">Keep the glitch alive</div>
+        <p class="panel-desc" style="margin-top: 8px;">
+          Datamosh GUI is free and open source. If it's part of your workflow,
+          consider supporting development so it stays maintained and improved.
+        </p>
+        <div class="support-row">
+          <a class="support-btn patreon" href="https://www.patreon.com/Seriousshit">
+            &#9829; Patreon
+          </a>
+          <a class="support-btn paypal" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=dogme84%40gmail.com&currency_code=USD">
+            &#10003; PayPal Donation
+          </a>
+          <a class="btn ghost" href="https://github.com/willbearfruits/datamosh-gui" style="align-self: center; font-size: 13px;">
+            Star on GitHub
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════
+         FOOTER
+    ════════════════════════════════════════════════════ -->
+    <footer class="card footer">
+      <div class="footer-left">
+        <span style="color: var(--cyan); font-weight: 600;">DATAMOSH GUI</span>
+        <span style="color: var(--line-hard);">|</span>
+        <span>v1.1.5</span>
+        <span style="color: var(--line-hard);">|</span>
+        <span>timeline compression art editor</span>
+      </div>
+      <div class="footer-right">
+        <a class="footer-link" href="https://github.com/willbearfruits/datamosh-gui">GitHub</a>
+        <a class="footer-link" href="https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.5">Release notes</a>
+        <a class="footer-link" href="https://www.patreon.com/Seriousshit">Patreon</a>
+      </div>
+    </footer>
+
   </main>
 </body>
 </html>
