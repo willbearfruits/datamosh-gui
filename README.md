@@ -2,7 +2,7 @@
 
 Interactive timeline-based datamoshing for clip-level I-frame and P-frame manipulation.
 
-Current version: `v1.1.4`.
+Current version: `v1.1.5`.
 
 ## Support
 
@@ -20,6 +20,22 @@ Screenshot:
 Sample output video:
 
 [Download example clip (AVI)](assets/showcase/example-1.avi)
+
+## Changelog
+
+### v1.1.5
+- **Fix:** Temp directories from normalization and I-frame injection are now cleaned up when a clip is removed, preventing `/tmp` accumulation over long sessions
+- **Fix:** Video info probing (fps, frame count, dimensions) moved off the Qt main thread — no more UI freeze after importing clips
+- **Fix:** Timeline scroll wheel now pans; `Ctrl+wheel` zooms (was inverted vs. shortcut docs)
+- **Fix:** Clip list view now highlights the correct row when a timeline clip is clicked
+- **Fix:** Settings panel controls are now disabled when no clip is selected (prevented silent no-op slider interactions)
+- **Fix:** "Cut At Playhead" context menu item disabled on empty timeline
+- **Fix:** `UpdateWorker` exceptions no longer permanently block future update checks
+- **Fix:** OpenCV video capture handle always released via `finally` (prevents file lock on Windows)
+- **Fix:** `RenderDialog` stops its render worker when the dialog is closed mid-render
+- **Fix:** Drag-reorder MIME data parse is now validated; malformed drops return `False` cleanly
+- **Fix:** Undo/redo stacks use `deque(maxlen=200)` for O(1) eviction
+- **Fix:** Timeline hint text contrast raised to meet WCAG AA minimum
 
 ## What This App Does
 
@@ -68,7 +84,7 @@ Or use:
 
 ## Releases & Local Packaging
 
-- Current release page: `https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.4`
+- Current release page: `https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.5`
 - Download portal: `https://willbearfruits.github.io/datamosh-gui/`
 - Release pipeline: `.github/workflows/release.yml`
 - Packaging details: `RELEASES.md`
