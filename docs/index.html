@@ -8,1540 +8,715 @@
   <meta property="og:title" content="Datamosh GUI — Timeline Glitch Editor">
   <meta property="og:description" content="Timeline-based desktop editor for intentional codec destruction. Drop I-frames, duplicate P-frames, build glitch sequences.">
   <meta property="og:image" content="assets/ui-preview.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&display=swap');
-
-    /* ─── Design tokens ────────────────────────────────────────────── */
     :root {
-      --bg:            #06090f;
-      --bg-raise:      #090d16;
-      --panel:         rgba(8, 12, 20, 0.80);
-      --panel-strong:  rgba(7, 10, 16, 0.92);
-      --line:          rgba(101, 223, 255, 0.18);
-      --line-hard:     rgba(101, 223, 255, 0.38);
-      --text:          #edf4ff;
-      --muted:         #7a90a8;
-      --muted-bright:  #aab9ca;
-      --cyan:          #65dfff;
-      --cyan-dim:      rgba(101, 223, 255, 0.12);
-      --lime:          #9cff5c;
-      --lime-dim:      rgba(156, 255, 92, 0.10);
-      --red:           #ff4f64;
-      --red-dim:       rgba(255, 79, 100, 0.12);
-      --amber:         #ffa940;
-      --shadow:        0 24px 64px rgba(0, 0, 0, 0.54);
-      --shadow-sm:     0 8px 28px rgba(0, 0, 0, 0.44);
-      --radius:        14px;
-      --radius-sm:     8px;
+      --bg:      #050507;
+      --surface: #0c0c10;
+      --border:  rgba(255,255,255,0.06);
+      --red:     #ff2850;
+      --cyan:    #00e5ff;
+      --green:   #39ff14;
+      --white:   #eee;
+      --grey:    #666;
+      --dim:     #333;
+      --font-d:  'Chakra Petch', sans-serif;
+      --font-m:  'JetBrains Mono', monospace;
     }
 
-    /* ─── Reset ─────────────────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
 
-    html, body {
-      margin: 0;
-      min-height: 100%;
-      color: var(--text);
-      font-family: "Space Grotesk", "Trebuchet MS", sans-serif;
+    body {
       background: var(--bg);
-      scroll-behavior: smooth;
+      color: var(--white);
+      font-family: var(--font-m);
+      font-size: 14px;
+      line-height: 1.7;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    body { position: relative; overflow-x: hidden; }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { color: var(--white); }
+    ::selection { background: var(--red); color: #000; }
 
-    h1, h2, h3, h4 { margin: 0; }
-    p { margin: 0; }
-    a { color: inherit; }
+    /* ─── Hero ────────────────────────────────────────────────── */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+      overflow: hidden;
+    }
 
-    /* ─── Background layer ───────────────────────────────────────────── */
-    .bg-video {
-      position: fixed;
+    .hero-video {
+      position: absolute;
       inset: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
-      filter: saturate(0.9) contrast(1.1) brightness(0.38);
-      z-index: -3;
+      opacity: 0.1;
+      filter: saturate(0.2) contrast(1.3);
     }
 
-    .bg-fx {
-      position: fixed;
-      inset: 0;
-      z-index: -2;
-      background:
-        linear-gradient(115deg, rgba(101, 223, 255, 0.07) 0%, transparent 42%),
-        radial-gradient(ellipse at 82% 12%, rgba(156, 255, 92, 0.08) 0%, transparent 42%),
-        radial-gradient(ellipse at 18% 88%, rgba(255, 79, 100, 0.07) 0%, transparent 38%),
-        linear-gradient(180deg, rgba(3, 5, 9, 0.28) 0%, rgba(3, 5, 9, 0.88) 100%);
-    }
-
-    /* Scanline overlay — subtle horizontal lines */
-    .bg-noise {
-      position: fixed;
-      inset: 0;
-      z-index: -1;
-      pointer-events: none;
-      background-image: repeating-linear-gradient(
-        0deg,
-        rgba(255, 255, 255, 0.025) 0px 1px,
-        transparent 1px 4px
-      );
-    }
-
-    /* ─── Layout wrapper ────────────────────────────────────────────── */
-    .wrap {
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 32px 20px 72px;
-      display: grid;
-      gap: 14px;
-    }
-
-    /* ─── Glassmorphic base card ────────────────────────────────────── */
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-    }
-
-    .card-strong {
-      background: var(--panel-strong);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-    }
-
-    /* ─── Signal pulse bar (reused in multiple places) ──────────────── */
-    .signal {
-      display: flex;
-      gap: 5px;
-    }
-
-    .signal span {
-      flex: 1;
-      height: 3px;
-      border-radius: 2px;
-      background: rgba(101, 223, 255, 0.12);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .signal span::before {
-      content: "";
+    .hero::after {
+      content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(90deg, transparent, var(--cyan), var(--red), transparent);
-      transform: translateX(-100%);
-      animation: pulse-bar 3.2s linear infinite;
-    }
-    .signal span:nth-child(2)::before { animation-delay: 0.3s; }
-    .signal span:nth-child(3)::before { animation-delay: 0.6s; }
-    .signal span:nth-child(4)::before { animation-delay: 0.9s; }
-    .signal span:nth-child(5)::before { animation-delay: 1.2s; }
-    .signal span:nth-child(6)::before { animation-delay: 1.5s; }
-
-    @keyframes pulse-bar {
-      0%   { transform: translateX(-100%); }
-      100% { transform: translateX(100%); }
+      background: radial-gradient(ellipse at center, transparent 20%, var(--bg) 75%);
     }
 
-    /* ─── Glitch text split effect ──────────────────────────────────── */
-    .glitch-wrap {
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      max-width: 860px;
+    }
+
+    .hero-label {
+      display: inline-block;
+      font-family: var(--font-m);
+      font-size: 0.65rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--red);
+      border: 1px solid rgba(255,40,80,0.25);
+      padding: 0.3em 1.2em;
+      margin-bottom: 2rem;
+    }
+
+    .hero-title {
+      font-family: var(--font-d);
+      font-weight: 700;
+      font-size: clamp(3.5rem, 9vw, 8rem);
+      line-height: 0.9;
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-title .red { color: var(--red); }
+
+    .hero-title .sub {
+      display: block;
+      font-weight: 300;
+      font-size: 0.3em;
+      letter-spacing: 0.15em;
+      color: var(--grey);
+      margin-top: 0.3em;
+    }
+
+    /* Glitch — only on hover, sharp & brief */
+    .glitch-hover {
       position: relative;
       display: inline-block;
+      cursor: default;
     }
-
-    .glitch-wrap::before,
-    .glitch-wrap::after {
+    .glitch-hover::before,
+    .glitch-hover::after {
       content: attr(data-text);
       position: absolute;
       inset: 0;
       pointer-events: none;
-      font-size: inherit;
-      font-weight: inherit;
-      letter-spacing: inherit;
-      line-height: inherit;
+      opacity: 0;
+    }
+    .glitch-hover::before { color: var(--cyan); }
+    .glitch-hover::after  { color: var(--red); }
+
+    .glitch-hover:hover::before {
+      opacity: 1;
+      animation: g1 0.15s steps(2) 1;
+    }
+    .glitch-hover:hover::after {
+      opacity: 1;
+      animation: g2 0.15s steps(2) 1;
     }
 
-    .glitch-wrap::before {
+    @keyframes g1 {
+      0%   { transform: translate(-3px, 1px); clip-path: inset(10% 0 60% 0); }
+      50%  { transform: translate(2px, -1px); clip-path: inset(40% 0 20% 0); }
+      100% { transform: translate(0); opacity: 0; }
+    }
+    @keyframes g2 {
+      0%   { transform: translate(3px, -1px); clip-path: inset(50% 0 10% 0); }
+      50%  { transform: translate(-2px, 1px); clip-path: inset(20% 0 50% 0); }
+      100% { transform: translate(0); opacity: 0; }
+    }
+
+    .hero-sub {
+      font-size: clamp(0.8rem, 1.4vw, 0.95rem);
+      color: var(--grey);
+      max-width: 500px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.9;
+    }
+    .hero-sub code {
       color: var(--cyan);
-      clip-path: polygon(0 0, 100% 0, 100% 38%, 0 38%);
-      transform: translateX(-2px);
-      opacity: 0.7;
-      animation: glitch-top 5s step-end infinite;
+      background: rgba(0,229,255,0.07);
+      padding: 0.1em 0.35em;
+      font-size: 0.9em;
     }
 
-    .glitch-wrap::after {
-      color: var(--red);
-      clip-path: polygon(0 62%, 100% 62%, 100% 100%, 0 100%);
-      transform: translateX(2px);
-      opacity: 0.6;
-      animation: glitch-bot 5s step-end infinite;
-    }
-
-    @keyframes glitch-top {
-      0%, 92%, 100% { transform: translateX(-2px); opacity: 0.7; clip-path: polygon(0 0, 100% 0, 100% 38%, 0 38%); }
-      93%            { transform: translateX(4px) skewX(-1deg); opacity: 0.9; }
-      94%            { transform: translateX(-3px); opacity: 0.5; }
-      95%            { transform: translateX(0);    opacity: 0.0; }
-      96%            { transform: translateX(-2px); opacity: 0.7; clip-path: polygon(0 15%, 100% 10%, 100% 44%, 0 49%); }
-    }
-
-    @keyframes glitch-bot {
-      0%, 92%, 100% { transform: translateX(2px); opacity: 0.6; clip-path: polygon(0 62%, 100% 62%, 100% 100%, 0 100%); }
-      93%            { transform: translateX(-4px) skewX(1deg); opacity: 0.8; }
-      94%            { transform: translateX(3px);  opacity: 0.4; }
-      95%            { transform: translateX(0);    opacity: 0.0; }
-      96%            { transform: translateX(2px);  opacity: 0.6; clip-path: polygon(0 55%, 100% 60%, 100% 100%, 0 100%); }
-    }
-
-    /* ─── Section corruption divider ────────────────────────────────── */
-    .corrupt-divider {
-      width: 100%;
-      height: 18px;
-      position: relative;
-      overflow: hidden;
+    .cta-group {
       display: flex;
-      align-items: center;
-      gap: 2px;
-      padding: 0 0;
-      opacity: 0.55;
-    }
-
-    .corrupt-divider span {
-      display: block;
-      height: 1px;
-      background: var(--cyan);
-      flex: 1;
-    }
-
-    .corrupt-divider span:nth-child(3n)   { height: 3px; background: var(--red); opacity: 0.9; }
-    .corrupt-divider span:nth-child(5n)   { height: 2px; background: var(--lime); }
-    .corrupt-divider span:nth-child(7n)   { flex: 3; }
-    .corrupt-divider span:nth-child(11n)  { height: 1px; opacity: 0.3; }
-    .corrupt-divider span:nth-child(13n)  { flex: 0 0 4px; background: var(--red); height: 4px; }
-
-    /* ─── Hero ──────────────────────────────────────────────────────── */
-    .hero {
-      padding: 36px 32px 28px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    /* Animated signal bar in hero top-right corner */
-    .hero-signal-bar {
-      position: absolute;
-      right: -20px;
-      top: 22px;
-      width: 260px;
-      height: 9px;
-      background: repeating-linear-gradient(
-        90deg,
-        rgba(101, 223, 255, 0.65) 0px 10px,
-        transparent 10px 18px
-      );
-      transform: skewX(-26deg);
-      opacity: 0.45;
-      animation: hero-bar-slide 7s linear infinite;
-    }
-
-    .hero-signal-bar-2 {
-      position: absolute;
-      right: -10px;
-      top: 36px;
-      width: 180px;
-      height: 4px;
-      background: repeating-linear-gradient(
-        90deg,
-        rgba(156, 255, 92, 0.55) 0px 6px,
-        transparent 6px 12px
-      );
-      transform: skewX(-26deg);
-      opacity: 0.40;
-      animation: hero-bar-slide 5s linear infinite reverse;
-    }
-
-    @keyframes hero-bar-slide {
-      0%   { transform: skewX(-26deg) translateX(0); }
-      50%  { transform: skewX(-26deg) translateX(-30px); }
-      100% { transform: skewX(-26deg) translateX(0); }
-    }
-
-    .release-pill {
-      display: inline-flex;
-      gap: 8px;
-      align-items: center;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.10em;
-      color: var(--muted-bright);
-      border: 1px solid var(--line-hard);
-      border-radius: 4px;
-      padding: 5px 10px;
-      background: rgba(7, 10, 16, 0.75);
-    }
-
-    .release-pill .dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--lime);
-      box-shadow: 0 0 10px rgba(156, 255, 92, 0.85);
-      animation: dot-pulse 2.4s ease-in-out infinite;
-    }
-
-    @keyframes dot-pulse {
-      0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(156, 255, 92, 0.85); }
-      50%       { opacity: 0.5; box-shadow: 0 0 4px rgba(156, 255, 92, 0.3); }
-    }
-
-    h1 {
-      margin: 14px 0 10px;
-      font-size: clamp(40px, 7vw, 72px);
-      line-height: 0.92;
-      letter-spacing: -0.035em;
-      font-weight: 700;
-    }
-
-    .hero-tagline {
-      color: var(--muted-bright);
-      max-width: 680px;
-      line-height: 1.55;
-      font-size: clamp(15px, 2.2vw, 18px);
-      margin-top: 6px;
-      font-weight: 400;
-    }
-
-    .hero-tagline strong {
-      color: var(--cyan);
-      font-weight: 500;
-    }
-
-    .hero-meta {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-top: 20px;
+      gap: 0.8rem;
+      justify-content: center;
       flex-wrap: wrap;
-    }
-
-    .meta-stat {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-    }
-
-    .meta-stat strong {
-      display: block;
-      font-size: 16px;
-      color: var(--text);
-      letter-spacing: -0.02em;
-      font-family: "Space Grotesk", sans-serif;
-      font-weight: 700;
-    }
-
-    .meta-divider {
-      width: 1px;
-      height: 28px;
-      background: var(--line-hard);
-    }
-
-    .cta {
-      margin-top: 24px;
-      display: flex;
-      gap: 9px;
-      flex-wrap: wrap;
+      margin-bottom: 2.5rem;
     }
 
     .btn {
-      text-decoration: none;
-      border-radius: 6px;
-      padding: 10px 16px;
-      font-size: 13px;
-      font-weight: 700;
-      border: 1px solid transparent;
-      letter-spacing: 0.01em;
-      transition: transform 120ms cubic-bezier(0.2, 0, 0, 1),
-                  border-color 120ms ease,
-                  filter 120ms ease,
-                  box-shadow 120ms ease;
-      white-space: nowrap;
-    }
-
-    .btn:hover {
-      transform: translateY(-2px);
-      filter: brightness(1.06);
-    }
-
-    .btn.primary {
-      background: linear-gradient(130deg, var(--cyan) 0%, #a8eeff 100%);
-      color: #04111f;
-      border-color: rgba(255, 255, 255, 0.35);
-      box-shadow: 0 0 24px rgba(101, 223, 255, 0.22);
-    }
-
-    .btn.primary:hover {
-      box-shadow: 0 0 36px rgba(101, 223, 255, 0.38);
-    }
-
-    .btn.ghost {
-      background: rgba(9, 14, 24, 0.85);
-      color: var(--text);
-      border-color: var(--line-hard);
-    }
-
-    .btn.ghost:hover {
-      border-color: rgba(101, 223, 255, 0.5);
-    }
-
-    .btn.lime {
-      background: rgba(156, 255, 92, 0.10);
-      color: var(--lime);
-      border-color: rgba(156, 255, 92, 0.35);
-    }
-
-    .btn.lime:hover {
-      background: rgba(156, 255, 92, 0.16);
-      border-color: rgba(156, 255, 92, 0.6);
-    }
-
-    /* ─── Two-col showcase ──────────────────────────────────────────── */
-    .showcase {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-    }
-
-    .panel-inner {
-      padding: 20px;
-    }
-
-    .panel-label {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--muted);
-      margin-bottom: 6px;
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 7px;
-    }
-
-    .panel-label::before {
-      content: "";
-      display: inline-block;
-      width: 16px;
-      height: 1px;
-      background: var(--cyan);
-      opacity: 0.6;
-    }
-
-    .panel-label.lime-accent::before { background: var(--lime); }
-    .panel-label.red-accent::before  { background: var(--red); }
-
-    .panel-h2 {
-      font-size: 18px;
-      letter-spacing: -0.015em;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-
-    .panel-desc {
-      color: var(--muted-bright);
-      font-size: 13.5px;
-      line-height: 1.5;
-    }
-
-    .media-frame {
-      margin-top: 14px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--line);
-      width: 100%;
-      display: block;
-      background: #04060d;
-    }
-
-    /* ─── Features grid ─────────────────────────────────────────────── */
-    .features-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
-
-    .feat {
-      padding: 16px 18px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      background: rgba(8, 12, 20, 0.70);
-      backdrop-filter: blur(6px);
-      display: flex;
-      gap: 14px;
-      align-items: flex-start;
-      transition: border-color 140ms ease;
-    }
-
-    .feat:hover { border-color: var(--line-hard); }
-
-    .feat-icon {
-      flex-shrink: 0;
-      width: 34px;
-      height: 34px;
-      border-radius: 6px;
-      background: var(--cyan-dim);
-      border: 1px solid rgba(101, 223, 255, 0.22);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      line-height: 1;
-    }
-
-    .feat-icon.lime { background: var(--lime-dim); border-color: rgba(156, 255, 92, 0.22); }
-    .feat-icon.red  { background: var(--red-dim);  border-color: rgba(255, 79, 100, 0.22); }
-    .feat-icon.amber { background: rgba(255, 169, 64, 0.10); border-color: rgba(255, 169, 64, 0.22); }
-
-    .feat-title {
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      margin-bottom: 3px;
-    }
-
-    .feat-body {
-      font-size: 13px;
-      color: var(--muted-bright);
-      line-height: 1.45;
-    }
-
-    /* ─── What's new — changelog timeline ───────────────────────────── */
-    .changelog {
-      position: relative;
-      padding-left: 28px;
-      display: grid;
-      gap: 0;
-    }
-
-    .changelog::before {
-      content: "";
-      position: absolute;
-      left: 6px;
-      top: 8px;
-      bottom: 8px;
-      width: 1px;
-      background: linear-gradient(
-        to bottom,
-        var(--cyan) 0%,
-        rgba(101, 223, 255, 0.3) 60%,
-        transparent 100%
-      );
-    }
-
-    .cl-entry {
-      position: relative;
-      padding: 0 0 18px;
-    }
-
-    .cl-entry:last-child { padding-bottom: 0; }
-
-    .cl-entry::before {
-      content: "";
-      position: absolute;
-      left: -25px;
-      top: 5px;
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--cyan);
-      border: 1px solid rgba(101, 223, 255, 0.5);
-      box-shadow: 0 0 8px rgba(101, 223, 255, 0.5);
-    }
-
-    .cl-entry.fix::before  { background: var(--lime); border-color: rgba(156, 255, 92, 0.5); box-shadow: 0 0 8px rgba(156, 255, 92, 0.4); }
-    .cl-entry.perf::before { background: var(--amber); border-color: rgba(255, 169, 64, 0.5); box-shadow: 0 0 8px rgba(255, 169, 64, 0.4); }
-    .cl-entry.ux::before   { background: var(--cyan); }
-
-    .cl-tag {
-      display: inline-block;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 9px;
+      gap: 0.5rem;
+      font-family: var(--font-d);
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      letter-spacing: 0.10em;
-      border-radius: 3px;
-      padding: 2px 6px;
-      margin-bottom: 4px;
-      background: var(--cyan-dim);
-      color: var(--cyan);
-      border: 1px solid rgba(101, 223, 255, 0.25);
+      padding: 0.75em 1.8em;
+      border: 1px solid;
+      transition: all 0.15s;
+    }
+    .btn svg { width: 15px; height: 15px; fill: currentColor; }
+
+    .btn-primary {
+      color: #000;
+      background: var(--red);
+      border-color: var(--red);
+    }
+    .btn-primary:hover {
+      color: #000;
+      background: #ff4d6e;
+      border-color: #ff4d6e;
+      box-shadow: 0 0 30px rgba(255,40,80,0.25);
     }
 
-    .cl-entry.fix .cl-tag   { background: var(--lime-dim); color: var(--lime); border-color: rgba(156, 255, 92, 0.25); }
-    .cl-entry.perf .cl-tag  { background: rgba(255, 169, 64, 0.10); color: var(--amber); border-color: rgba(255, 169, 64, 0.25); }
-
-    .cl-title {
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      line-height: 1.3;
+    .btn-ghost {
+      color: var(--white);
+      background: transparent;
+      border-color: var(--dim);
     }
-
-    .cl-body {
-      font-size: 12.5px;
-      color: var(--muted-bright);
-      margin-top: 2px;
-      line-height: 1.45;
-    }
-
-    /* ─── Downloads ─────────────────────────────────────────────────── */
-    .dl-header {
-      padding: 22px 24px 18px;
-    }
-
-    .section-label {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--muted);
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .section-label::before {
-      content: "";
-      display: inline-block;
-      width: 20px;
-      height: 1px;
-      background: var(--cyan);
-      opacity: 0.55;
-    }
-
-    .section-h2 {
-      font-size: clamp(20px, 3.5vw, 28px);
-      letter-spacing: -0.025em;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-
-    .section-desc {
-      color: var(--muted-bright);
-      font-size: 14px;
-      line-height: 1.5;
-      max-width: 640px;
+    .btn-ghost:hover {
+      color: var(--white);
+      border-color: var(--grey);
     }
 
     .platforms {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 12px;
-    }
-
-    .platform {
-      border-radius: var(--radius);
-      border: 1px solid var(--line);
-      background: var(--panel-strong);
-      box-shadow: var(--shadow-sm);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      padding: 20px;
-      transition: border-color 140ms ease;
-    }
-
-    .platform:hover { border-color: var(--line-hard); }
-
-    .plat-head {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    .plat-icon {
-      font-size: 20px;
-      line-height: 1;
-      width: 36px;
-      height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 6px;
-      background: var(--cyan-dim);
-      border: 1px solid rgba(101, 223, 255, 0.20);
-    }
-
-    .plat-icon.win { background: rgba(0, 174, 255, 0.10); border-color: rgba(0, 174, 255, 0.22); }
-    .plat-icon.mac { background: rgba(180, 180, 180, 0.08); border-color: rgba(180, 180, 180, 0.20); }
-
-    .plat-title {
-      font-size: 17px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-    }
-
-    .plat-sub {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 1px;
-    }
-
-    .dl-stack {
-      display: grid;
-      gap: 7px;
-    }
-
-    .dl-link {
-      text-decoration: none;
-      color: var(--text);
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 12px;
-      border-radius: 6px;
-      border: 1px solid rgba(101, 223, 255, 0.18);
-      background: rgba(6, 9, 15, 0.80);
-      padding: 9px 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: border-color 120ms ease, background 120ms ease;
-    }
-
-    .dl-link:hover {
-      border-color: rgba(156, 255, 92, 0.45);
-      background: rgba(156, 255, 92, 0.05);
-    }
-
-    .dl-link .dl-arrow {
-      margin-left: auto;
-      font-size: 11px;
-      color: var(--muted);
-      transition: color 120ms ease, transform 120ms ease;
-    }
-
-    .dl-link:hover .dl-arrow {
-      color: var(--lime);
-      transform: translateX(2px);
-    }
-
-    .dl-link .dl-badge {
-      font-size: 9px;
+      font-size: 0.6rem;
+      color: var(--dim);
+      letter-spacing: 0.2em;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      border: 1px solid rgba(255, 255, 255, 0.10);
+    }
+    .platforms span { color: var(--green); }
+
+    .scroll-hint {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1;
+      color: var(--dim);
+      font-size: 0.55rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+    .scroll-hint .bar {
+      display: block;
+      width: 1px;
+      height: 24px;
+      background: var(--dim);
+      margin: 0.5rem auto 0;
+    }
+
+    /* ─── Screenshot ──────────────────────────────────────────── */
+    .preview-section {
+      background: #000;
+      padding: 3rem 2rem 5rem;
+    }
+
+    .preview-frame {
+      max-width: 980px;
+      margin: 0 auto;
+      border: 1px solid var(--border);
       border-radius: 3px;
-      padding: 1px 5px;
-      flex-shrink: 0;
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
     }
 
-    .dl-link.checksum {
-      border-color: rgba(255, 255, 255, 0.08);
-      opacity: 0.7;
-    }
-
-    .dl-link.checksum:hover { border-color: rgba(255, 255, 255, 0.22); opacity: 1; }
-
-    /* ─── Keyboard shortcuts ────────────────────────────────────────── */
-    .shortcuts-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 6px;
-    }
-
-    .shortcut-row {
+    .preview-bar {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 8px 12px;
-      border-radius: 5px;
-      border: 1px solid transparent;
-      transition: border-color 100ms ease;
-    }
-
-    .shortcut-row:hover { border-color: var(--line); background: rgba(8, 12, 20, 0.5); }
-
-    .shortcut-key {
-      flex-shrink: 0;
-      display: inline-flex;
-      gap: 4px;
-      align-items: center;
-      min-width: 120px;
-    }
-
-    .key {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--cyan);
-      background: rgba(101, 223, 255, 0.09);
-      border: 1px solid rgba(101, 223, 255, 0.28);
-      border-radius: 4px;
-      padding: 2px 7px;
-      line-height: 1.5;
-      letter-spacing: 0.04em;
-    }
-
-    .key-sep {
-      color: var(--muted);
-      font-size: 10px;
-    }
-
-    .shortcut-desc {
-      font-size: 13px;
-      color: var(--muted-bright);
-      line-height: 1.4;
-    }
-
-    .shortcuts-group-label {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 10px;
+      gap: 6px;
+      padding: 0.5rem 0.8rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.6rem;
+      color: var(--dim);
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      letter-spacing: 0.10em;
-      color: var(--muted);
-      margin: 14px 0 6px;
+    }
+    .preview-bar .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+    }
+    .preview-bar .dot:nth-child(1) { background: var(--red); opacity: 0.6; }
+    .preview-bar .dot:nth-child(2) { background: #ffa940; opacity: 0.6; }
+    .preview-bar .dot:nth-child(3) { background: var(--green); opacity: 0.6; }
+
+    .preview-frame img { display: block; width: 100%; }
+
+    /* ─── Shared section styling ──────────────────────────────── */
+    section { padding: 5rem 2rem; }
+    .container { max-width: 1060px; margin: 0 auto; }
+
+    .section-tag {
+      font-family: var(--font-m);
+      font-size: 0.6rem;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--red);
+      margin-bottom: 0.6rem;
     }
 
-    .shortcuts-group-label:first-child { margin-top: 0; }
+    .section-title {
+      font-family: var(--font-d);
+      font-weight: 700;
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+      text-transform: uppercase;
+      line-height: 1.1;
+      margin-bottom: 3rem;
+    }
 
-    /* ─── CLI block ─────────────────────────────────────────────────── */
+    .divider {
+      border: none;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* thin red accent line between major sections */
+    .accent-line {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--red), transparent);
+      opacity: 0.3;
+    }
+
+    /* ─── Features ────────────────────────────────────────────── */
+    .features-section { background: var(--bg); }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+    }
+
+    .feature-card {
+      background: var(--bg);
+      padding: 2rem;
+      transition: background 0.15s;
+    }
+    .feature-card:hover { background: var(--surface); }
+
+    .feature-num {
+      font-family: var(--font-m);
+      font-size: 0.6rem;
+      color: var(--dim);
+      margin-bottom: 1rem;
+    }
+
+    .feature-card h3 {
+      font-family: var(--font-d);
+      font-weight: 600;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-card p {
+      font-size: 0.78rem;
+      color: var(--grey);
+      line-height: 1.8;
+    }
+
+    /* ─── How it works ────────────────────────────────────────── */
+    .how-section { background: #000; }
+
+    .steps { counter-reset: s; }
+
+    .step {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 1.5rem;
+      padding: 1.8rem 0;
+      border-bottom: 1px solid var(--border);
+      counter-increment: s;
+      align-items: baseline;
+    }
+    .step:last-child { border-bottom: none; }
+
+    .step-n {
+      font-family: var(--font-d);
+      font-weight: 700;
+      font-size: 1.8rem;
+      color: var(--dim);
+      text-align: right;
+      padding-right: 1.2rem;
+      border-right: 1px solid var(--border);
+      line-height: 1;
+    }
+    .step-n::before { content: counter(s, decimal-leading-zero); }
+
+    .step h3 {
+      font-family: var(--font-d);
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.3rem;
+    }
+    .step p {
+      font-size: 0.78rem;
+      color: var(--grey);
+      line-height: 1.8;
+    }
+    .step code {
+      color: var(--green);
+      background: rgba(57,255,20,0.05);
+      padding: 0.1em 0.35em;
+      font-size: 0.9em;
+    }
+
+    /* ─── Downloads ───────────────────────────────────────────── */
+    .download-section { background: var(--bg); }
+
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.2rem;
+    }
+
+    .dl-card {
+      border: 1px solid var(--border);
+      padding: 1.8rem;
+      transition: border-color 0.15s;
+    }
+    .dl-card:hover {
+      border-color: rgba(255,40,80,0.2);
+    }
+
+    .dl-card .os {
+      font-family: var(--font-d);
+      font-weight: 700;
+      font-size: 1.2rem;
+      text-transform: uppercase;
+      margin-bottom: 0.2rem;
+    }
+    .dl-card .arch {
+      font-size: 0.6rem;
+      color: var(--dim);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .dl-links a {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-m);
+      font-size: 0.75rem;
+      color: var(--grey);
+      padding: 0.45em 0;
+      border-bottom: 1px solid var(--border);
+      transition: color 0.12s, padding-left 0.12s;
+    }
+    .dl-links a:last-child { border-bottom: none; }
+    .dl-links a:hover { color: var(--cyan); padding-left: 0.4em; }
+
+    .dl-links .ext {
+      font-size: 0.55rem;
+      color: var(--dim);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .dl-links a:hover .ext { color: var(--cyan); }
+
+    /* ─── CLI ─────────────────────────────────────────────────── */
+    .cli-section { background: #000; }
+
     .cli-block {
-      border-radius: var(--radius-sm);
-      border: 1px solid rgba(101, 223, 255, 0.18);
-      background: #030508;
-      padding: 20px 22px;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 13px;
-      line-height: 1.75;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1.8rem;
+      font-family: var(--font-m);
+      font-size: 0.78rem;
+      line-height: 2;
+      max-width: 650px;
       overflow-x: auto;
     }
+    .cli-block .prompt  { color: var(--red); }
+    .cli-block .cmd     { color: var(--white); }
+    .cli-block .flag    { color: var(--cyan); }
+    .cli-block .comment { color: var(--dim); font-style: italic; }
+    .cli-block .val     { color: var(--green); }
 
-    .cli-line { display: block; }
-    .cli-prompt  { color: var(--lime); user-select: none; }
-    .cli-cmd     { color: var(--text); }
-    .cli-flag    { color: var(--cyan); }
-    .cli-arg     { color: var(--amber); }
-    .cli-comment { color: var(--muted); font-style: italic; }
-
-    .cli-block + .cli-caption {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 10px;
-      font-family: "IBM Plex Mono", monospace;
+    /* ─── Footer ──────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 2rem;
+      text-align: center;
     }
 
-    /* ─── Support section ───────────────────────────────────────────── */
-    .support-row {
+    .footer-links {
       display: flex;
-      gap: 10px;
+      justify-content: center;
+      gap: 2rem;
+      margin-bottom: 1rem;
       flex-wrap: wrap;
-      margin-top: 16px;
+    }
+    .footer-links a {
+      font-size: 0.65rem;
+      color: var(--dim);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+    .footer-links a:hover { color: var(--white); }
+
+    .footer-copy {
+      font-size: 0.6rem;
+      color: var(--dim);
+      letter-spacing: 0.08em;
     }
 
-    .support-btn {
-      text-decoration: none;
-      border-radius: 6px;
-      padding: 10px 16px;
-      font-size: 13px;
-      font-weight: 700;
-      border: 1px solid transparent;
-      transition: transform 120ms ease, filter 120ms ease;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    /* ─── Responsive ──────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .features-grid { grid-template-columns: 1fr; }
+      .download-grid { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 40px 1fr; gap: 1rem; }
+      .step-n { font-size: 1.3rem; padding-right: 0.8rem; }
+      .cta-group { flex-direction: column; align-items: center; }
+      .btn { width: 100%; max-width: 280px; justify-content: center; }
     }
 
-    .support-btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
-
-    .support-btn.patreon {
-      background: rgba(255, 66, 77, 0.12);
-      color: #ff5a68;
-      border-color: rgba(255, 66, 77, 0.35);
-    }
-
-    .support-btn.paypal {
-      background: rgba(0, 157, 224, 0.10);
-      color: #5ac8fa;
-      border-color: rgba(0, 157, 224, 0.30);
-    }
-
-    /* ─── Footer ────────────────────────────────────────────────────── */
-    .footer {
-      padding: 18px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .footer-left {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 11px;
-      color: var(--muted);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .footer-right {
-      display: flex;
-      gap: 14px;
-    }
-
-    .footer-link {
-      text-decoration: none;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 11px;
-      color: var(--muted);
-      transition: color 120ms ease;
-    }
-
-    .footer-link:hover { color: var(--cyan); }
-
-    /* ─── Responsive ────────────────────────────────────────────────── */
-    @media (min-width: 600px) {
-      .features-grid { grid-template-columns: repeat(2, 1fr); }
-      .shortcuts-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    @media (min-width: 860px) {
-      .showcase { grid-template-columns: 1.15fr 0.85fr; }
-      .platforms { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .features-grid { grid-template-columns: repeat(3, 1fr); }
-      .shortcuts-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    @media (max-width: 540px) {
-      .hero { padding: 24px 18px 22px; }
-      .panel-inner { padding: 16px; }
-      .dl-header { padding: 18px 16px; }
-      .platform { padding: 16px; }
-      .meta-divider { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0s !important; transition-duration: 0s !important; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Background layer -->
-  <video class="bg-video" autoplay muted loop playsinline poster="assets/ui-preview.png">
-    <source src="assets/preview-bg.mp4" type="video/mp4">
-  </video>
-  <div class="bg-fx"></div>
-  <div class="bg-noise"></div>
+  <!-- Hero -->
+  <section class="hero">
+    <video class="hero-video" autoplay muted loop playsinline>
+      <source src="assets/preview-bg.mp4" type="video/mp4">
+    </video>
 
-  <main class="wrap">
+    <div class="hero-content">
+      <div class="hero-label">v1.1.5 — stable release</div>
 
-    <!-- ═══════════════════════════════════════════════════
-         HERO
-    ════════════════════════════════════════════════════ -->
-    <header class="card hero">
-      <div class="hero-signal-bar"></div>
-      <div class="hero-signal-bar-2"></div>
-
-      <span class="release-pill"><span class="dot"></span> latest release &nbsp;|&nbsp; v1.1.5</span>
-
-      <h1>
-        <span class="glitch-wrap" data-text="Datamosh">Datamosh</span><br>
-        <span style="color: var(--cyan);">GUI</span>
+      <h1 class="hero-title">
+        <span class="glitch-hover" data-text="DATA">DATA</span><span class="glitch-hover red" data-text="MOSH">MOSH</span>
+        <span class="sub">Timeline Glitch Editor</span>
       </h1>
 
-      <p class="hero-tagline">
-        Timeline-first desktop editor for <strong>controlled codec destruction</strong>.
-        Cut hard. Drop I-frames. Smear motion with duplicate P-frames.
-        Build intentional glitch sequences and render the chaos.
+      <p class="hero-sub">
+        Drop <code>I-frames</code>, duplicate <code>P-frames</code>,
+        build glitch sequences. Free &amp; open source.
       </p>
 
-      <div class="hero-meta">
-        <div class="meta-stat">
-          Platform
-          <strong>Linux · Win · macOS</strong>
-        </div>
-        <div class="meta-divider"></div>
-        <div class="meta-stat">
-          License
-          <strong>Free / Open Source</strong>
-        </div>
-        <div class="meta-divider"></div>
-        <div class="meta-stat">
-          Format
-          <strong>Xvid AVI</strong>
-        </div>
-      </div>
-
-      <div class="cta">
-        <a class="btn primary" href="https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.5">
-          Download v1.1.5
+      <div class="cta-group">
+        <a href="#download" class="btn btn-primary">
+          <svg viewBox="0 0 16 16"><path d="M8 12l-4.5-4.5 1.06-1.06L7.5 9.38V1h1v8.38l2.94-2.94 1.06 1.06L8 12zm-6 2h12v1H2v-1z"/></svg>
+          Download
         </a>
-        <a class="btn ghost" href="https://github.com/willbearfruits/datamosh-gui">
-          GitHub
-        </a>
-        <a class="btn lime" href="https://www.patreon.com/Seriousshit">
-          Patreon
-        </a>
-        <a class="btn ghost" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=dogme84%40gmail.com&currency_code=USD">
-          PayPal
+        <a href="https://github.com/willbearfruits/datamosh-gui" class="btn btn-ghost" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          Source
         </a>
       </div>
 
-      <div class="signal" style="margin-top: 22px;">
-        <span></span><span></span><span></span><span></span><span></span><span></span>
-      </div>
-    </header>
-
-    <!-- ═══════════════════════════════════════════════════
-         SHOWCASE — screenshot + sample video
-    ════════════════════════════════════════════════════ -->
-    <section class="showcase">
-      <article class="card">
-        <div class="panel-inner">
-          <div class="panel-label">Interface</div>
-          <div class="panel-h2">Timeline Editor</div>
-          <p class="panel-desc">
-            Per-clip control over I-frame dropping, P-frame duplication, and keyframe injection.
-            NLE-style layout with live preview and undo/redo.
-          </p>
-          <img class="media-frame" src="assets/ui-preview.png" alt="Datamosh GUI — timeline editor screenshot">
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="panel-inner">
-          <div class="panel-label lime-accent">Output sample</div>
-          <div class="panel-h2">Rendered Glitch Loop</div>
-          <p class="panel-desc">
-            Live example of output rendered through the P-frame smear pipeline.
-            Source imported, normalised to Xvid AVI, moshed, rendered.
-          </p>
-          <video class="media-frame" autoplay muted loop playsinline>
-            <source src="assets/preview-bg.mp4" type="video/mp4">
-          </video>
-        </div>
-      </article>
-    </section>
-
-    <!-- corruption divider -->
-    <div class="corrupt-divider" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
+      <div class="platforms"><span>&#9679;</span> linux · windows · macos</div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════
-         FEATURES
-    ════════════════════════════════════════════════════ -->
-    <section class="card">
-      <div class="panel-inner">
-        <div class="section-label">Capabilities</div>
-        <div class="section-h2">What it does</div>
-        <p class="section-desc" style="margin-bottom: 20px;">
-          Full creative control over the AVI bitstream — no decoding, no re-encoding,
-          pure binary chunk manipulation at codec level.
-        </p>
+    <div class="scroll-hint">scroll<span class="bar"></span></div>
+  </section>
 
-        <div class="features-grid">
-          <div class="feat">
-            <div class="feat-icon">&#9776;</div>
-            <div>
-              <div class="feat-title">Multi-clip timeline</div>
-              <div class="feat-body">Sequence any number of clips on an NLE-style timeline. Each segment has independent mosh settings.</div>
-            </div>
-          </div>
+  <div class="accent-line"></div>
 
-          <div class="feat">
-            <div class="feat-icon red">&#9888;</div>
-            <div>
-              <div class="feat-title">Drop I-frames</div>
-              <div class="feat-body">Remove keyframes at clip boundaries to let compression bleed across cuts. The core datamosh operation.</div>
-            </div>
-          </div>
+  <!-- Screenshot -->
+  <section class="preview-section">
+    <div class="container">
+      <div class="preview-frame">
+        <div class="preview-bar">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span style="margin-left:auto">datamosh-gui</span>
+        </div>
+        <img src="assets/ui-preview.png" alt="Datamosh GUI interface" loading="lazy">
+      </div>
+    </div>
+  </section>
 
-          <div class="feat">
-            <div class="feat-icon lime">&#8734;</div>
-            <div>
-              <div class="feat-title">Duplicate P-frames</div>
-              <div class="feat-body">Repeat delta frames to smear motion, freeze movement artifacts, and create motion blur-like trails.</div>
-            </div>
-          </div>
+  <!-- Features -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <div class="section-tag">// capabilities</div>
+      <h2 class="section-title">Built for controlled destruction</h2>
 
-          <div class="feat">
-            <div class="feat-icon">&#9654;</div>
-            <div>
-              <div class="feat-title">Live preview</div>
-              <div class="feat-body">300 ms debounced re-mosh pipeline. See the glitch output update in real time as you adjust settings.</div>
-            </div>
-          </div>
-
-          <div class="feat">
-            <div class="feat-icon amber">&#8635;</div>
-            <div>
-              <div class="feat-title">Full undo / redo</div>
-              <div class="feat-body">Every clip operation is tracked in an O(1) deque-backed undo stack. Nothing is permanent.</div>
-            </div>
-          </div>
-
-          <div class="feat">
-            <div class="feat-icon lime">&#8644;</div>
-            <div>
-              <div class="feat-title">Drag and reorder</div>
-              <div class="feat-body">Drag clips in the panel, split at playhead, rearrange sequences. Clip list and timeline stay in sync.</div>
-            </div>
-          </div>
-
-          <div class="feat">
-            <div class="feat-icon">&#8645;</div>
-            <div>
-              <div class="feat-title">Import any format</div>
-              <div class="feat-body">Anything ffmpeg reads gets normalised to Xvid AVI automatically on import. No manual conversion.</div>
-            </div>
-          </div>
-
-          <div class="feat">
-            <div class="feat-icon red">&#9998;</div>
-            <div>
-              <div class="feat-title">Per-clip control</div>
-              <div class="feat-body">Keep first frame, set duplicate count and gap, toggle keyframe drop — all independently per segment.</div>
-            </div>
-          </div>
-
-          <div class="feat">
-            <div class="feat-icon amber">&#9654;&#9474;</div>
-            <div>
-              <div class="feat-title">CLI standalone</div>
-              <div class="feat-body">The mosh engine is a plain Python script. Use <code style="color: var(--cyan); font-family: IBM Plex Mono, monospace; font-size: 11px;">mosh.py</code> directly in shell pipelines without the GUI.</div>
-            </div>
-          </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-num">01</div>
+          <h3>NLE Timeline</h3>
+          <p>Premiere-style timeline with zoom, scrub, and per-clip control. Drag to reorder, visualize frame density.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">02</div>
+          <h3>Live Preview</h3>
+          <p>See glitches in real time. Parameter changes trigger a debounced re-mosh with instant frame display.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">03</div>
+          <h3>Binary AVI Engine</h3>
+          <p>Operates directly on RIFF/AVI binary structure. No decoding, no re-encoding. Pure chunk-level manipulation.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">04</div>
+          <h3>Any Input Format</h3>
+          <p>Import MP4, MOV, MKV, WebM. Automatic normalization to Xvid AVI via ffmpeg before processing.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">05</div>
+          <h3>Per-Clip Controls</h3>
+          <p>Fine-tune keep_first, duplicate_count, duplicate_gap, keyframe dropping independently per clip.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">06</div>
+          <h3>I-Frame Injection</h3>
+          <p>Insert custom I-frames between clips to control where motion vectors propagate. Seed corruption precisely.</p>
         </div>
       </div>
-    </section>
-
-    <!-- corruption divider -->
-    <div class="corrupt-divider" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
     </div>
+  </section>
 
-    <!-- ═══════════════════════════════════════════════════
-         WHAT'S NEW — v1.1.5 changelog timeline
-    ════════════════════════════════════════════════════ -->
-    <section class="showcase" style="grid-template-columns: 1fr;">
-      <article class="card">
-        <div class="panel-inner">
-          <div class="section-label">Changelog</div>
-          <div class="section-h2">What's new in v1.1.5</div>
-          <p class="section-desc" style="margin-bottom: 22px;">
-            Stability, resource hygiene, and interaction fixes across all platforms.
-          </p>
+  <hr class="divider">
 
-          <div class="changelog">
-            <div class="cl-entry fix">
-              <span class="cl-tag">perf</span>
-              <div class="cl-title">No more /tmp bloat</div>
-              <div class="cl-body">Temporary directories created during import are now cleaned up when a clip is removed from the project.</div>
-            </div>
+  <!-- How it works -->
+  <section class="how-section">
+    <div class="container">
+      <div class="section-tag">// process</div>
+      <h2 class="section-title">How it works</h2>
 
-            <div class="cl-entry fix">
-              <span class="cl-tag">ux</span>
-              <div class="cl-title">Background video probing</div>
-              <div class="cl-body">Video metadata is probed off the main thread. The UI no longer freezes during import of large files.</div>
-            </div>
-
-            <div class="cl-entry">
-              <span class="cl-tag">ux</span>
-              <div class="cl-title">Scroll wheel pans timeline</div>
-              <div class="cl-body">Scroll wheel now pans the timeline horizontally. Ctrl + scroll wheel zooms. More natural NLE behavior.</div>
-            </div>
-
-            <div class="cl-entry">
-              <span class="cl-tag">ux</span>
-              <div class="cl-title">Clip list syncs on timeline click</div>
-              <div class="cl-body">Clicking a clip block in the timeline now also highlights the corresponding entry in the clip list panel.</div>
-            </div>
-
-            <div class="cl-entry">
-              <span class="cl-tag">ux</span>
-              <div class="cl-title">Settings panel locked when no clip selected</div>
-              <div class="cl-body">The settings panel is now disabled when no clip is selected, preventing stray changes from being applied.</div>
-            </div>
-
-            <div class="cl-entry fix">
-              <span class="cl-tag">fix</span>
-              <div class="cl-title">UpdateWorker crash fix</div>
-              <div class="cl-body">Resolved a race condition in the update worker that caused crashes when switching clips rapidly.</div>
-            </div>
-
-            <div class="cl-entry fix">
-              <span class="cl-tag">fix</span>
-              <div class="cl-title">OpenCV handle leak (Windows)</div>
-              <div class="cl-body">Fixed a file handle leak in the frame extractor on Windows that accumulated open handles over long sessions.</div>
-            </div>
-
-            <div class="cl-entry fix">
-              <span class="cl-tag">fix</span>
-              <div class="cl-title">Render dialog stops worker on close</div>
-              <div class="cl-body">Closing the render dialog now properly terminates the background render worker instead of leaving it orphaned.</div>
-            </div>
-
-            <div class="cl-entry perf">
-              <span class="cl-tag">perf</span>
-              <div class="cl-title">Undo stack O(1) with deque</div>
-              <div class="cl-body">The undo history is now backed by a bounded deque, eliminating memory growth with long sessions.</div>
-            </div>
-          </div>
-        </div>
-      </article>
-    </section>
-
-    <!-- corruption divider -->
-    <div class="corrupt-divider" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════
-         KEYBOARD SHORTCUTS
-    ════════════════════════════════════════════════════ -->
-    <section class="card">
-      <div class="panel-inner">
-        <div class="section-label">Reference</div>
-        <div class="section-h2">Keyboard shortcuts</div>
-        <p class="section-desc" style="margin-bottom: 20px;">
-          All shortcuts are global unless noted. Use them to stay in flow.
-        </p>
-
-        <div class="shortcuts-grid">
+      <div class="steps">
+        <div class="step">
+          <div class="step-n"></div>
           <div>
-            <div class="shortcuts-group-label">Playback</div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">Space</span></div>
-              <div class="shortcut-desc">Play / Pause</div>
-            </div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">&#8592;</span> <span class="key-sep">/</span> <span class="key">&#8594;</span></div>
-              <div class="shortcut-desc">Step one frame</div>
-            </div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">Home</span></div>
-              <div class="shortcut-desc">Jump to start</div>
-            </div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">End</span></div>
-              <div class="shortcut-desc">Jump to end</div>
-            </div>
+            <h3>Import</h3>
+            <p>Drop any video file. It's normalized to <code>Xvid AVI</code> automatically.</p>
           </div>
-
+        </div>
+        <div class="step">
+          <div class="step-n"></div>
           <div>
-            <div class="shortcuts-group-label">Edit</div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">Z</span></div>
-              <div class="shortcut-desc">Undo</div>
-            </div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">Y</span></div>
-              <div class="shortcut-desc">Redo</div>
-            </div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">Del</span></div>
-              <div class="shortcut-desc">Remove selected clip</div>
-            </div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">I</span></div>
-              <div class="shortcut-desc">Drop first I-frame on clip</div>
-            </div>
+            <h3>Configure</h3>
+            <p>Set parameters per clip: frames to keep, P-frames to duplicate, gap, keyframe dropping.</p>
           </div>
-
+        </div>
+        <div class="step">
+          <div class="step-n"></div>
           <div>
-            <div class="shortcuts-group-label">File</div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">O</span></div>
-              <div class="shortcut-desc">Open / import clip</div>
-            </div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">R</span></div>
-              <div class="shortcut-desc">Render output</div>
-            </div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">Q</span></div>
-              <div class="shortcut-desc">Quit</div>
-            </div>
+            <h3>Preview</h3>
+            <p>Watch the glitch evolve in real time. Binary rewrite + frame extraction in milliseconds.</p>
           </div>
-
+        </div>
+        <div class="step">
+          <div class="step-n"></div>
           <div>
-            <div class="shortcuts-group-label">Timeline</div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">Ctrl</span> <span class="key-sep">+</span> <span class="key">Scroll</span></div>
-              <div class="shortcut-desc">Zoom timeline in / out</div>
-            </div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">Scroll</span></div>
-              <div class="shortcut-desc">Pan timeline</div>
-            </div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">Middle click</span></div>
-              <div class="shortcut-desc">Pan timeline</div>
-            </div>
-            <div class="shortcut-row">
-              <div class="shortcut-key"><span class="key">S</span></div>
-              <div class="shortcut-desc">Split clip at playhead</div>
-            </div>
+            <h3>Render</h3>
+            <p>Export your moshed sequence as AVI. Multiple clips with different settings in one output.</p>
           </div>
         </div>
       </div>
-    </section>
-
-    <!-- corruption divider -->
-    <div class="corrupt-divider" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
     </div>
+  </section>
 
-    <!-- ═══════════════════════════════════════════════════
-         CLI
-    ════════════════════════════════════════════════════ -->
-    <section class="card">
-      <div class="panel-inner">
-        <div class="section-label">CLI engine</div>
-        <div class="section-h2">Use without the GUI</div>
-        <p class="section-desc" style="margin-bottom: 18px;">
-          The mosh engine is a self-contained Python script.
-          Drop it into any pipeline — no GUI dependencies required.
-        </p>
+  <div class="accent-line"></div>
 
-        <div class="cli-block">
-          <span class="cli-line">
-            <span class="cli-comment"># basic datamosh — drop I-frames, keep first frame</span>
-          </span>
-          <span class="cli-line">
-            <span class="cli-prompt">$&nbsp;</span>
-            <span class="cli-cmd">python3 mosh.py</span>
-            <span class="cli-arg"> input.avi output.avi</span>
-            <span class="cli-flag"> --keep-first 1</span>
-          </span>
-          <span class="cli-line">&nbsp;</span>
-          <span class="cli-line">
-            <span class="cli-comment"># duplicate P-frames for motion smear</span>
-          </span>
-          <span class="cli-line">
-            <span class="cli-prompt">$&nbsp;</span>
-            <span class="cli-cmd">python3 mosh.py</span>
-            <span class="cli-arg"> input.avi output.avi</span>
-            <span class="cli-flag"> --duplicate-count 8 --duplicate-gap 3</span>
-          </span>
-          <span class="cli-line">&nbsp;</span>
-          <span class="cli-line">
-            <span class="cli-comment"># normalise any format to Xvid AVI first</span>
-          </span>
-          <span class="cli-line">
-            <span class="cli-prompt">$&nbsp;</span>
-            <span class="cli-cmd">python3 mosh.py</span>
-            <span class="cli-arg"> input.mp4 output.avi</span>
-            <span class="cli-flag"> --normalize --keep-first 1 --drop-keyframe</span>
-          </span>
+  <!-- Download -->
+  <section class="download-section" id="download">
+    <div class="container">
+      <div class="section-tag">// download v1.1.5</div>
+      <h2 class="section-title">Get Datamosh GUI</h2>
+
+      <div class="download-grid">
+        <div class="dl-card">
+          <div class="os">Linux</div>
+          <div class="arch">x86_64</div>
+          <div class="dl-links">
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/Datamosh.GUI-1.1.5-x86_64.AppImage">AppImage <span class="ext">.appimage</span></a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/datamosh-gui_1.1.5_amd64.deb">Debian Package <span class="ext">.deb</span></a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/datamosh-gui-1.1.5-linux.tar.gz">Archive <span class="ext">.tar.gz</span></a>
+          </div>
         </div>
-
-        <p class="cli-caption">
-          Requires ffmpeg + ffprobe on PATH. Output is always Xvid AVI.
-        </p>
+        <div class="dl-card">
+          <div class="os">Windows</div>
+          <div class="arch">x86_64</div>
+          <div class="dl-links">
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/Datamosh.GUI-1.1.5-setup.exe">Installer <span class="ext">.exe</span></a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/datamosh-gui-1.1.5-windows.zip">Portable <span class="ext">.zip</span></a>
+          </div>
+        </div>
+        <div class="dl-card">
+          <div class="os">macOS</div>
+          <div class="arch">universal</div>
+          <div class="dl-links">
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/Datamosh.GUI-1.1.5.dmg">Disk Image <span class="ext">.dmg</span></a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/datamosh-gui-1.1.5-macos.zip">Archive <span class="ext">.zip</span></a>
+          </div>
+        </div>
       </div>
-    </section>
-
-    <!-- corruption divider -->
-    <div class="corrupt-divider" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
     </div>
+  </section>
 
-    <!-- ═══════════════════════════════════════════════════
-         DOWNLOADS
-    ════════════════════════════════════════════════════ -->
-    <section class="card-strong" id="downloads">
-      <div class="dl-header">
-        <div class="section-label">v1.1.5</div>
-        <div class="section-h2">Downloads</div>
-        <p class="section-desc">
-          Portable packages, installers, and SHA-256 checksums.
-          Verify checksums before running any installer.
-        </p>
+  <hr class="divider">
+
+  <!-- CLI -->
+  <section class="cli-section">
+    <div class="container">
+      <div class="section-tag">// cli</div>
+      <h2 class="section-title">Prefer the terminal?</h2>
+
+      <div class="cli-block">
+        <span class="comment"># clone + run</span><br>
+        <span class="prompt">$</span> <span class="cmd">git clone</span> <span class="val">https://github.com/willbearfruits/datamosh-gui.git</span><br>
+        <span class="prompt">$</span> <span class="cmd">cd</span> <span class="val">datamosh-gui</span><br>
+        <span class="prompt">$</span> <span class="cmd">pip install</span> <span class="flag">-r</span> <span class="val">requirements.txt</span><br>
+        <br>
+        <span class="comment"># launch gui</span><br>
+        <span class="prompt">$</span> <span class="cmd">python3</span> <span class="val">main.py</span><br>
+        <br>
+        <span class="comment"># or use the engine directly</span><br>
+        <span class="prompt">$</span> <span class="cmd">python3</span> <span class="val">mosh.py</span> <span class="val">input.avi</span> <span class="val">output.avi</span> <span class="flag">--keep-first</span> <span class="val">1</span>
       </div>
+    </div>
+  </section>
 
-      <div style="padding: 0 20px 20px;">
-        <div class="platforms">
+  <!-- Footer -->
+  <footer>
+    <div class="footer-links">
+      <a href="https://github.com/willbearfruits/datamosh-gui" target="_blank" rel="noopener">github</a>
+      <a href="https://github.com/willbearfruits/datamosh-gui/releases" target="_blank" rel="noopener">releases</a>
+      <a href="https://github.com/willbearfruits/datamosh-gui/issues" target="_blank" rel="noopener">issues</a>
+      <a href="https://ko-fi.com/willbearfruits" target="_blank" rel="noopener">donate</a>
+    </div>
+    <div class="footer-copy">made with &#9632; by willbearfruits · free &amp; open source · gpl-3.0</div>
+  </footer>
 
-          <!-- Linux -->
-          <article class="platform">
-            <div class="plat-head">
-              <div class="plat-icon">&#127823;</div>
-              <div>
-                <div class="plat-title">Linux</div>
-                <div class="plat-sub">x86_64 &mdash; glibc 2.35+</div>
-              </div>
-            </div>
-            <div class="dl-stack">
-              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-linux-x86_64.AppImage">
-                <span class="dl-badge">AppImage</span>
-                Datamosh-1.1.5-linux-x86_64.AppImage
-                <span class="dl-arrow">&#8594;</span>
-              </a>
-              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-linux-installer.deb">
-                <span class="dl-badge">.deb</span>
-                Datamosh-1.1.5-linux-installer.deb
-                <span class="dl-arrow">&#8594;</span>
-              </a>
-              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-linux-portable.tar.gz">
-                <span class="dl-badge">tar.gz</span>
-                Datamosh-1.1.5-linux-portable.tar.gz
-                <span class="dl-arrow">&#8594;</span>
-              </a>
-              <a class="dl-link checksum" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/SHA256SUMS-linux.txt">
-                SHA256SUMS-linux.txt
-                <span class="dl-arrow">&#8594;</span>
-              </a>
-            </div>
-          </article>
-
-          <!-- Windows -->
-          <article class="platform">
-            <div class="plat-head">
-              <div class="plat-icon win">&#11036;</div>
-              <div>
-                <div class="plat-title">Windows</div>
-                <div class="plat-sub">Windows 10 / 11 &mdash; x64</div>
-              </div>
-            </div>
-            <div class="dl-stack">
-              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-windows-installer.exe">
-                <span class="dl-badge">.exe</span>
-                Datamosh-1.1.5-windows-installer.exe
-                <span class="dl-arrow">&#8594;</span>
-              </a>
-              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-windows-portable.zip">
-                <span class="dl-badge">.zip</span>
-                Datamosh-1.1.5-windows-portable.zip
-                <span class="dl-arrow">&#8594;</span>
-              </a>
-              <a class="dl-link checksum" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/SHA256SUMS-windows.txt">
-                SHA256SUMS-windows.txt
-                <span class="dl-arrow">&#8594;</span>
-              </a>
-            </div>
-          </article>
-
-          <!-- macOS -->
-          <article class="platform">
-            <div class="plat-head">
-              <div class="plat-icon mac">&#63743;</div>
-              <div>
-                <div class="plat-title">macOS</div>
-                <div class="plat-sub">macOS 12+ &mdash; Apple Silicon &amp; Intel</div>
-              </div>
-            </div>
-            <div class="dl-stack">
-              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-macos-installer.dmg">
-                <span class="dl-badge">.dmg</span>
-                Datamosh-1.1.5-macos-installer.dmg
-                <span class="dl-arrow">&#8594;</span>
-              </a>
-              <a class="dl-link" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/Datamosh-1.1.5-macos-portable.zip">
-                <span class="dl-badge">.zip</span>
-                Datamosh-1.1.5-macos-portable.zip
-                <span class="dl-arrow">&#8594;</span>
-              </a>
-              <a class="dl-link checksum" href="https://github.com/willbearfruits/datamosh-gui/releases/download/v1.1.5/SHA256SUMS-macos.txt">
-                SHA256SUMS-macos.txt
-                <span class="dl-arrow">&#8594;</span>
-              </a>
-            </div>
-          </article>
-
-        </div>
-      </div>
-
-      <div style="padding: 0 20px 16px;">
-        <div class="signal">
-          <span></span><span></span><span></span><span></span><span></span><span></span>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════════════════════════════════════════════
-         SUPPORT
-    ════════════════════════════════════════════════════ -->
-    <section class="card">
-      <div class="panel-inner">
-        <div class="section-label">Support the project</div>
-        <div class="section-h2">Keep the glitch alive</div>
-        <p class="panel-desc" style="margin-top: 8px;">
-          Datamosh GUI is free and open source. If it's part of your workflow,
-          consider supporting development so it stays maintained and improved.
-        </p>
-        <div class="support-row">
-          <a class="support-btn patreon" href="https://www.patreon.com/Seriousshit">
-            &#9829; Patreon
-          </a>
-          <a class="support-btn paypal" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=dogme84%40gmail.com&currency_code=USD">
-            &#10003; PayPal Donation
-          </a>
-          <a class="btn ghost" href="https://github.com/willbearfruits/datamosh-gui" style="align-self: center; font-size: 13px;">
-            Star on GitHub
-          </a>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════════════════════════════════════════════
-         FOOTER
-    ════════════════════════════════════════════════════ -->
-    <footer class="card footer">
-      <div class="footer-left">
-        <span style="color: var(--cyan); font-weight: 600;">DATAMOSH GUI</span>
-        <span style="color: var(--line-hard);">|</span>
-        <span>v1.1.5</span>
-        <span style="color: var(--line-hard);">|</span>
-        <span>timeline compression art editor</span>
-      </div>
-      <div class="footer-right">
-        <a class="footer-link" href="https://github.com/willbearfruits/datamosh-gui">GitHub</a>
-        <a class="footer-link" href="https://github.com/willbearfruits/datamosh-gui/releases/tag/v1.1.5">Release notes</a>
-        <a class="footer-link" href="https://www.patreon.com/Seriousshit">Patreon</a>
-      </div>
-    </footer>
-
-  </main>
 </body>
 </html>
