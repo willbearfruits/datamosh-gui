@@ -33,6 +33,9 @@ class ClipProfile:
     trim_start_frame: int = 0
     trim_end_frame: int = 0  # exclusive; 0 means "use full clip"
     drop_first_keyframe_override: Optional[bool] = None
+    # "clip" = normal video import; "iframe" = injected single-frame clip. Drives
+    # how the clip is re-ingested when a saved .dmosh project is reopened.
+    source_kind: str = "clip"
     # Temp directory created during normalization or I-frame injection.
     temp_dir: Optional[Path] = field(default=None, repr=False, compare=False)
 

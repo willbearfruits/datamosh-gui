@@ -1,8 +1,12 @@
 """Main window with splitter-based layout."""
 
+from pathlib import Path
+from typing import Optional
+
 from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
+    QFileDialog,
     QMainWindow,
     QMessageBox,
     QSplitter,
@@ -10,6 +14,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from gui.models import project_io
 
 from gui.widgets.clip_panel import ClipPanel
 from gui.widgets.preview_widget import PreviewWidget
@@ -41,10 +47,14 @@ class MainWindow(QMainWindow):
 
         self.project = Project()
         self._update_worker: UpdateWorker | None = None
+        self._project_path: Optional[Path] = None
+        self._dirty = False
+        self._loading = False
 
         self._build_ui()
         self._connect_signals()
         self.setAcceptDrops(True)
+        self._update_title()
 
     # -- UI construction ---------------------------------------------------
 
@@ -108,6 +118,28 @@ class MainWindow(QMainWindow):
         menu = self.menuBar()
 
         file_menu = menu.addMenu("&File")
+
+        self._new_action = QAction("New Project", self)
+        self._new_action.setShortcut(QKeySequence.StandardKey.New)
+        self._new_action.triggered.connect(self._new_project)
+        file_menu.addAction(self._new_action)
+
+        self._open_project_action = QAction("Open Project...", self)
+        self._open_project_action.setShortcut(QKeySequence("Ctrl+Shift+P"))
+        self._open_project_action.triggered.connect(self._open_project)
+        file_menu.addAction(self._open_project_action)
+
+        self._save_action = QAction("Save Project", self)
+        self._save_action.setShortcut(QKeySequence.StandardKey.Save)
+        self._save_action.triggered.connect(self._save_project)
+        file_menu.addAction(self._save_action)
+
+        self._save_as_action = QAction("Save Project As...", self)
+        self._save_as_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        self._save_as_action.triggered.connect(self._save_project_as)
+        file_menu.addAction(self._save_as_action)
+
+        file_menu.addSeparator()
         file_menu.addAction(self.toolbar.open_action)
         file_menu.addAction(self.toolbar.add_action)
         file_menu.addSeparator()
@@ -181,6 +213,14 @@ class MainWindow(QMainWindow):
         self._set_history_state(self.project.can_undo(), self.project.can_redo())
         self._set_timeline_menu_state()
 
+        # Unsaved-changes tracking. rowsInserted/rowsRemoved fire on add/remove
+        # (not on normalize-completion, which only updates row data), so a loaded
+        # project stays clean until the user actually edits it.
+        self.project.clip_updated.connect(self._mark_dirty)
+        self.project.timeline_changed.connect(self._mark_dirty)
+        self.project.clip_model.rowsInserted.connect(self._mark_dirty)
+        self.project.clip_model.rowsRemoved.connect(self._mark_dirty)
+
     # -- Drag-and-drop -----------------------------------------------------
 
     def dragEnterEvent(self, event) -> None:
@@ -193,6 +233,9 @@ class MainWindow(QMainWindow):
             self.files_dropped.emit(paths)
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if not self._maybe_discard_changes():
+            event.ignore()
+            return
         try:
             self.preview_widget.shutdown()
             self.timeline_widget.shutdown()
@@ -205,6 +248,126 @@ class MainWindow(QMainWindow):
                     self._update_worker.wait(300)
         finally:
             super().closeEvent(event)
+
+    # -- Project persistence ----------------------------------------------
+
+    def _mark_dirty(self, *_args) -> None:
+        if self._loading or self._dirty:
+            return
+        self._dirty = True
+        self._update_title()
+
+    def _set_clean(self) -> None:
+        self._dirty = False
+        self._update_title()
+
+    def _update_title(self) -> None:
+        name = self._project_path.name if self._project_path else "Untitled"
+        star = "*" if self._dirty else ""
+        self.setWindowTitle(f"Datamosh {get_version()} — {name}{star}")
+
+    def _maybe_discard_changes(self) -> bool:
+        """Prompt to save/discard if dirty. Return True to proceed, False to cancel."""
+        if not self._dirty:
+            return True
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Unsaved Changes")
+        box.setText("This project has unsaved changes.")
+        box.setInformativeText("Save them before continuing?")
+        save_btn = box.addButton("Save", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked == cancel_btn:
+            return False
+        if clicked == save_btn:
+            return self._save_project()
+        return True  # discard
+
+    def _new_project(self) -> None:
+        if not self._maybe_discard_changes():
+            return
+        self._loading = True
+        try:
+            self.preview_widget.reset()
+            self.project.clear()
+        finally:
+            self._loading = False
+        self._project_path = None
+        self._set_clean()
+        self.set_status("New project", 1500)
+
+    def _open_project(self) -> None:
+        if not self._maybe_discard_changes():
+            return
+        start_dir = str(self._project_path.parent) if self._project_path else ""
+        path_str, _ = QFileDialog.getOpenFileName(
+            self, "Open Project", start_dir,
+            f"Datamosh Project (*{project_io.PROJECT_SUFFIX});;All Files (*)",
+        )
+        if path_str:
+            self._load_project_file(Path(path_str))
+
+    def _load_project_file(self, path: Path) -> None:
+        try:
+            data = project_io.read_project(path)
+        except project_io.ProjectLoadError as exc:
+            QMessageBox.critical(self, "Open Project", str(exc))
+            return
+
+        self._loading = True
+        try:
+            self.preview_widget.reset()
+            settings = data.get("import_settings") or self.clip_panel.current_import_settings()
+            clips = self.project.install_loaded_state(data)
+            for row in range(len(clips)):
+                self.clip_panel.reingest_loaded_clip(row, settings)
+        finally:
+            self._loading = False
+
+        self._project_path = path
+        self._set_clean()
+        missing = sum(1 for c in self.project.clips if not c.source_path.is_file())
+        if missing:
+            QMessageBox.warning(
+                self, "Open Project",
+                f"{missing} source file(s) could not be found. "
+                "Those clips will stay empty until their sources are available.",
+            )
+        self.set_status(f"Opened {path.name}", 2500)
+
+    def _save_project(self) -> bool:
+        if self._project_path is None:
+            return self._save_project_as()
+        return self._do_save_to(self._project_path)
+
+    def _save_project_as(self) -> bool:
+        start = str(self._project_path) if self._project_path else f"untitled{project_io.PROJECT_SUFFIX}"
+        path_str, _ = QFileDialog.getSaveFileName(
+            self, "Save Project As", start,
+            f"Datamosh Project (*{project_io.PROJECT_SUFFIX});;All Files (*)",
+        )
+        if not path_str:
+            return False
+        path = Path(path_str)
+        if path.suffix.lower() != project_io.PROJECT_SUFFIX:
+            path = path.with_suffix(project_io.PROJECT_SUFFIX)
+        return self._do_save_to(path)
+
+    def _do_save_to(self, path: Path) -> bool:
+        try:
+            project_io.write_project(
+                path, self.project, self.clip_panel.current_import_settings(), get_version()
+            )
+        except OSError as exc:
+            QMessageBox.critical(self, "Save Project", f"Could not save project:\n{exc}")
+            return False
+        self._project_path = path
+        self._set_clean()
+        self.set_status(f"Saved {path.name}", 2500)
+        return True
 
     # -- Actions -----------------------------------------------------------
 

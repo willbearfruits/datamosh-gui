@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from gui.dialogs.normalize_dialog import NormalizeDialog
 from gui.models.clip_model import ClipProfile
 from gui.models.project import Project
+from gui.workers.iframe_inject_worker import IFrameInjectWorker
 from gui.workers.normalize_worker import NormalizeWorker
 
 VIDEO_FILTER = "Video Files (*.avi *.mp4 *.mkv *.mov *.webm *.flv *.wmv);;All Files (*)"
@@ -280,6 +281,71 @@ class ClipPanel(QWidget):
             row = self._project.add_clip(clip)
             self._start_thumbnail(path, row)
             self._start_ingest(row, settings)
+
+    # -- Project load support ----------------------------------------------
+
+    def current_import_settings(self) -> dict[str, Any]:
+        """The persisted import settings (used when saving a project)."""
+        return self._load_import_settings()
+
+    def reingest_loaded_clip(self, row: int, settings: dict[str, Any]) -> None:
+        """Re-ingest a clip recreated from a loaded project so it becomes ready.
+
+        Normal clips are re-normalized; injected I-frame clips are rebuilt from
+        their source media via the inject worker.
+        """
+        clip = self._project.clip_model.clip_at(row)
+        if not clip:
+            return
+        if not clip.source_path.is_file():
+            self._project.status_message.emit(
+                f"Clip {row + 1}: source not found ({clip.source_path.name})"
+            )
+            return
+        if clip.source_kind == "iframe":
+            self._start_iframe_reingest(row, clip)
+        else:
+            self._start_thumbnail(clip.source_path, row)
+            self._start_ingest(row, normalize_import_settings(settings))
+
+    def _start_iframe_reingest(self, row: int, clip: ClipProfile) -> None:
+        clip.normalizing = True
+        self._project.clip_model.update_clip(row)
+        worker = IFrameInjectWorker(
+            source=clip.source_path,
+            width=clip.frame_width or None,
+            height=clip.frame_height or None,
+            fps=clip.fps,
+            parent=self,
+        )
+        worker.finished_ok.connect(
+            lambda out_path, out_fps, r=row: self._on_iframe_reingested(r, out_path, out_fps)
+        )
+        worker.error.connect(lambda msg, r=row: self._on_reingest_error(r, msg))
+        worker.finished.connect(worker.deleteLater)
+        self._track_worker(worker)
+        worker.start()
+
+    def _on_iframe_reingested(self, row: int, out_path: str, out_fps: float) -> None:
+        clip = self._project.clip_model.clip_at(row)
+        if not clip:
+            return
+        out = Path(out_path)
+        clip.normalized_path = out
+        clip.temp_dir = out.parent
+        clip.normalizing = False
+        if out_fps > 0:
+            clip.fps = out_fps
+        self._project.clip_model.update_clip(row)
+        self._project.clips_changed.emit()
+        self._project.status_message.emit(f"Clip {row + 1} ready (injected I-frame)")
+
+    def _on_reingest_error(self, row: int, msg: str) -> None:
+        clip = self._project.clip_model.clip_at(row)
+        if clip:
+            clip.normalizing = False
+            self._project.clip_model.update_clip(row)
+        self._project.status_message.emit(f"Error restoring clip {row + 1}: {msg}")
 
     # -- Internals ---------------------------------------------------------
 

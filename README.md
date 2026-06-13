@@ -157,6 +157,10 @@ pyinstaller --noconfirm --clean --windowed --name Datamosh \
 
 ## Keyboard Shortcuts
 
+- `Ctrl+N`: new project
+- `Ctrl+Shift+P`: open project (`.dmosh`)
+- `Ctrl+S`: save project
+- `Ctrl+Shift+S`: save project as
 - `Ctrl+O`: open clips
 - `Ctrl+Shift+O`: add clips
 - `Ctrl+R`: render
@@ -191,6 +195,15 @@ Headless-safe full suite:
 ```bash
 QT_QPA_PLATFORM=offscreen pytest -q
 ```
+
+## Projects
+
+Save your whole session — clips, per-clip mosh settings, timeline arrangement, cuts,
+and injected I-frames — to a `.dmosh` project file (`File > Save Project`, `Ctrl+S`).
+Reopening (`File > Open Project`, `Ctrl+Shift+P`) recreates the clips from their source
+paths and re-ingests them, so projects stay small and portable. Source media must still
+be present at its saved path; missing sources are reported and left empty. The window
+title shows the project name and a `*` when there are unsaved changes.
 
 ## Notes
 

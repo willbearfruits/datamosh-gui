@@ -1,0 +1,143 @@
+"""Tests for .dmosh project serialization and load/clear of project state."""
+
+import json
+import pytest
+from pathlib import Path
+
+from gui.models.clip_model import ClipProfile
+from gui.models.project import Project
+from gui.models import project_io
+
+
+@pytest.fixture
+def project(qtbot):  # qtbot ensures a QApplication exists
+    return Project()
+
+
+def test_serialize_captures_clip_settings_and_timeline(project):
+    a = ClipProfile(
+        source_path=Path("/tmp/a.mp4"),
+        keep_first=2, duplicate_count=3, duplicate_gap=4,
+        drop_first_keyframe=True, keep_keys_spec="0,5", drop_keys_spec="3",
+    )
+    b = ClipProfile(source_path=Path("/tmp/b.mp4"))
+    project.add_clip(a)  # add_to_timeline=True -> a timeline item per clip
+    project.add_clip(b)
+    project.select_clip(1)
+    project.select_timeline_item(0)
+
+    data = project_io.serialize(project, {"mode": "normalize"}, "1.1.5")
+
+    assert data["format"] == project_io.PROJECT_FORMAT
+    assert data["version"] == project_io.PROJECT_VERSION
+    assert len(data["clips"]) == 2
+    c0 = data["clips"][0]
+    assert c0["keep_first"] == 2 and c0["duplicate_count"] == 3 and c0["duplicate_gap"] == 4
+    assert c0["drop_first_keyframe"] is True
+    assert c0["keep_keys_spec"] == "0,5" and c0["drop_keys_spec"] == "3"
+    assert len(data["timeline"]) == 2
+    assert data["selected_row"] == 1
+    assert data["selected_timeline_index"] == 0
+    assert data["import_settings"]["mode"] == "normalize"
+
+
+def test_install_loaded_state_rebuilds_and_resets_history(project):
+    a = ClipProfile(
+        source_path=Path("/tmp/a.mp4"),
+        keep_first=2, duplicate_count=3, duplicate_gap=4,
+        drop_first_keyframe=True, keep_keys_spec="0,5", drop_keys_spec="3",
+    )
+    project.add_clip(a)
+    project.add_clip(ClipProfile(source_path=Path("/tmp/b.mp4")))
+    project.select_clip(1)
+    data = project_io.serialize(project, {}, "1.1.5")
+
+    p2 = Project()
+    clips = p2.install_loaded_state(data)
+
+    assert len(clips) == 2
+    assert clips[0].keep_first == 2 and clips[0].duplicate_count == 3 and clips[0].duplicate_gap == 4
+    assert clips[0].drop_first_keyframe is True
+    assert clips[0].keep_keys_spec == "0,5" and clips[0].drop_keys_spec == "3"
+    assert len(p2.timeline_items) == 2
+    assert p2.selected_row == 1
+    # A fresh load is a clean slate: no undo/redo history.
+    assert not p2.can_undo() and not p2.can_redo()
+
+
+def test_write_then_read_roundtrip(project, tmp_path):
+    project.add_clip(ClipProfile(source_path=Path("/tmp/a.mp4"), duplicate_count=5))
+    path = tmp_path / "proj.dmosh"
+    project_io.write_project(path, project, {"preset": "fast"}, "1.1.5")
+
+    data = project_io.read_project(path)
+    assert data["clips"][0]["duplicate_count"] == 5
+    assert data["import_settings"]["preset"] == "fast"
+
+
+def test_iframe_clip_roundtrips(project):
+    c = ClipProfile(
+        source_path=Path("/tmp/img.png"),
+        source_kind="iframe", fps=24.0, frame_width=640, frame_height=480,
+    )
+    project.add_clip(c)
+    data = project_io.serialize(project, {}, "1.1.5")
+    assert data["clips"][0]["kind"] == "iframe"
+    assert data["clips"][0]["iframe_fps"] == 24.0
+    assert data["clips"][0]["iframe_width"] == 640
+
+    p2 = Project()
+    clips = p2.install_loaded_state(data)
+    assert clips[0].source_kind == "iframe"
+    assert clips[0].fps == 24.0
+    assert clips[0].frame_width == 640
+
+
+def test_clear_empties_project(project):
+    project.add_clip(ClipProfile(source_path=Path("/tmp/a.mp4")))
+    assert project.has_clips()
+    project.clear()
+    assert not project.has_clips()
+    assert not project.has_timeline_items()
+    assert project.selected_row == -1
+    assert not project.can_undo()
+
+
+def test_read_rejects_non_project(tmp_path):
+    p = tmp_path / "x.dmosh"
+    p.write_text('{"hello": 1}', encoding="utf-8")
+    with pytest.raises(project_io.ProjectLoadError):
+        project_io.read_project(p)
+
+
+def test_read_rejects_bad_json(tmp_path):
+    p = tmp_path / "x.dmosh"
+    p.write_text("{not valid json", encoding="utf-8")
+    with pytest.raises(project_io.ProjectLoadError):
+        project_io.read_project(p)
+
+
+def test_read_rejects_newer_version(tmp_path):
+    p = tmp_path / "x.dmosh"
+    p.write_text(
+        json.dumps({"format": project_io.PROJECT_FORMAT, "version": 999, "clips": [], "timeline": []}),
+        encoding="utf-8",
+    )
+    with pytest.raises(project_io.ProjectLoadError):
+        project_io.read_project(p)
+
+
+def test_install_skips_out_of_range_timeline_index(project):
+    # A timeline entry pointing past the clip list must be dropped, not crash.
+    data = {
+        "format": project_io.PROJECT_FORMAT, "version": 1,
+        "clips": [{"kind": "clip", "source_path": "/tmp/a.mp4"}],
+        "timeline": [{"clip_index": 0, "in_frame": 0, "out_frame": 0,
+                      "drop_first_keyframe_override": None},
+                     {"clip_index": 7, "in_frame": 0, "out_frame": 0,
+                      "drop_first_keyframe_override": None}],
+        "selected_row": 0, "selected_timeline_index": 0,
+    }
+    clips = project.install_loaded_state(data)
+    assert len(clips) == 1
+    assert len(project.timeline_items) == 1  # the bogus index-7 entry is dropped

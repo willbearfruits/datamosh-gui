@@ -260,6 +260,22 @@ class PreviewWidget(QWidget):
                 self._mosh_worker.terminate()
                 self._mosh_worker.wait(300)
 
+    def reset(self) -> None:
+        """Cancel in-flight work and clear the display (project new/load)."""
+        self._debounce.stop()
+        self._stop_playback()
+        self._cancel_workers()
+        self._frames = []
+        self._current_frame = 0
+        self._last_mosh_id = None
+        self._scrubber.blockSignals(True)
+        self._scrubber.setRange(0, 0)
+        self._scrubber.setValue(0)
+        self._scrubber.blockSignals(False)
+        self._frame_label.setText("0/0")
+        self._display.setPixmap(QPixmap())
+        self._display.setText("Drop or open a video file to begin")
+
     def shutdown(self) -> None:
         """Stop preview timers/workers and clean temp files."""
         self._debounce.stop()

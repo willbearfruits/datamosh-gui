@@ -548,3 +548,86 @@ class Project(QObject):
 
     def _emit_history_changed(self) -> None:
         self.history_changed.emit(bool(self._undo_stack), bool(self._redo_stack))
+
+    # -- Project load/clear -----------------------------------------------
+
+    def clear(self) -> None:
+        """Reset to an empty project, reclaiming all temp dirs and history."""
+        self.cleanup_all()
+        self._restoring_history = True
+        try:
+            self.clip_model.replace_clips([])
+            self._timeline = []
+            self._selected_row = -1
+            self._selected_timeline_index = -1
+        finally:
+            self._restoring_history = False
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._pending_temp_cleanup = []
+        self.clips_changed.emit()
+        self.timeline_changed.emit()
+        self.clip_selected.emit(-1)
+        self.timeline_item_selected.emit(-1)
+        self._emit_history_changed()
+
+    def install_loaded_state(self, data: dict) -> list[ClipProfile]:
+        """Rebuild clips + timeline + selection from parsed .dmosh data.
+
+        Returns the freshly-created ClipProfile objects (not yet normalized) so the
+        caller can re-ingest each one. History is reset — a load is a clean slate.
+        """
+        clips: list[ClipProfile] = []
+        for spec in data.get("clips", []):
+            if not isinstance(spec, dict) or "source_path" not in spec:
+                continue
+            clip = ClipProfile(
+                source_path=Path(spec["source_path"]),
+                keep_first=int(spec.get("keep_first", 0) or 0),
+                duplicate_count=int(spec.get("duplicate_count", 0) or 0),
+                duplicate_gap=max(1, int(spec.get("duplicate_gap", 1) or 1)),
+                drop_first_keyframe=bool(spec.get("drop_first_keyframe", False)),
+                keep_keys_spec=str(spec.get("keep_keys_spec", "") or ""),
+                drop_keys_spec=str(spec.get("drop_keys_spec", "") or ""),
+                source_kind=str(spec.get("kind", "clip") or "clip"),
+            )
+            if clip.source_kind == "iframe":
+                clip.fps = float(spec.get("iframe_fps", 30.0) or 30.0)
+                clip.frame_width = int(spec.get("iframe_width") or 0)
+                clip.frame_height = int(spec.get("iframe_height") or 0)
+            clips.append(clip)
+
+        self._restoring_history = True
+        try:
+            self.clip_model.replace_clips(clips)
+            timeline: list[TimelineItem] = []
+            for spec in data.get("timeline", []):
+                if not isinstance(spec, dict):
+                    continue
+                ci = spec.get("clip_index", -1)
+                if isinstance(ci, int) and 0 <= ci < len(clips):
+                    timeline.append(TimelineItem(
+                        clip=clips[ci],
+                        in_frame=int(spec.get("in_frame", 0) or 0),
+                        out_frame=int(spec.get("out_frame", 0) or 0),
+                        drop_first_keyframe_override=spec.get("drop_first_keyframe_override"),
+                    ))
+            self._timeline = timeline
+            sr = data.get("selected_row", -1)
+            self._selected_row = sr if isinstance(sr, int) and 0 <= sr < len(clips) else -1
+            st = data.get("selected_timeline_index", -1)
+            self._selected_timeline_index = (
+                st if isinstance(st, int) and 0 <= st < len(timeline) else -1
+            )
+        finally:
+            self._restoring_history = False
+
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._pending_temp_cleanup = []
+        self.clips_changed.emit()
+        self.timeline_changed.emit()
+        self.clip_selected.emit(self._selected_row)
+        self.timeline_item_selected.emit(self._selected_timeline_index)
+        self._emit_history_changed()
+        return clips

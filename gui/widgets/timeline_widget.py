@@ -1263,6 +1263,7 @@ class TimelineWidget(QWidget):
             fps=out_fps if out_fps > 0 else 30.0,
             frame_width=width or 0,
             frame_height=height or 0,
+            source_kind="iframe",
             temp_dir=generated_path.parent,
         )
         self._project.begin_undo_step()
