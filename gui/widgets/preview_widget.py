@@ -50,6 +50,8 @@ class PreviewWidget(QWidget):
 
         self._mosh_worker: Optional[MoshWorker] = None
         self._extractor: Optional[FrameExtractor] = None
+        self._generation = 0          # bumps on every re-mosh; gates stale callbacks
+        self._inflight: set = set()   # running QThreads awaiting clean shutdown
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
         self._debounce.setInterval(300)
@@ -204,61 +206,99 @@ class PreviewWidget(QWidget):
             return
         self._last_mosh_id = mosh_id
 
-        # Cancel any in-flight work
+        # Supersede in-flight work and start a new generation. Each generation
+        # writes to its own temp file and its callbacks are gated by the token, so a
+        # detached worker can never mix frames into, or clobber, the current preview.
         self._cancel_workers()
+        gen = self._generation
+        self._purge_preview_files(keep_gen=gen)
 
-        temp_out = self._temp_dir / "preview.avi"
-
-        self._mosh_worker = MoshWorker(clips, temp_out, self)
-        self._mosh_worker.finished_ok.connect(self._on_mosh_done)
-        self._mosh_worker.error.connect(self._on_mosh_error)
+        temp_out = self._temp_dir / f"preview_{gen}.avi"
+        worker = MoshWorker(clips, temp_out, self)
+        worker.finished_ok.connect(lambda path, g=gen: self._on_mosh_done(g, path))
+        worker.error.connect(lambda msg, g=gen: self._on_mosh_error(g, msg))
+        worker.finished.connect(lambda w=worker: self._retire_worker(w))
+        self._mosh_worker = worker
+        self._inflight.add(worker)
         self._preview_max_frames = self._estimate_preview_frame_count(clips)
-        self._mosh_worker.start()
+        worker.start()
 
         name = "timeline" if self._preview_all else clips[0].label()
         self._display.setText(f"Moshing {name}...")
 
-    def _on_mosh_done(self, path: str) -> None:
-        self._frames.clear()
+    def _on_mosh_done(self, gen: int, path: str) -> None:
+        if gen != self._generation:
+            return  # superseded by a newer re-mosh
+        self._frames = []
         self._current_frame = 0
 
-        self._extractor = FrameExtractor(
+        extractor = FrameExtractor(
             Path(path),
             self,
             max_frames=self._preview_max_frames,
             target_width=640,
         )
-        self._extractor.frame_ready.connect(self._on_frame_decoded)
-        self._extractor.all_done.connect(self._on_extraction_done)
-        self._extractor.error.connect(self._on_mosh_error)
-        self._extractor.start()
+        extractor.frame_ready.connect(lambda idx, img, g=gen: self._on_frame_decoded(g, idx, img))
+        extractor.all_done.connect(lambda total, g=gen: self._on_extraction_done(g, total))
+        extractor.error.connect(lambda msg, g=gen: self._on_mosh_error(g, msg))
+        extractor.finished.connect(lambda w=extractor: self._retire_worker(w))
+        self._extractor = extractor
+        self._inflight.add(extractor)
+        extractor.start()
 
-    def _on_frame_decoded(self, idx: int, img: QImage) -> None:
+    def _on_frame_decoded(self, gen: int, idx: int, img: QImage) -> None:
+        if gen != self._generation:
+            return
         self._frames.append(img)
         if idx == 0:
             self._show_image(img)
-        self._scrubber.setRange(0, max(0, len(self._frames) - 1))
-        self._frame_label.setText(f"{self._current_frame + 1}/{len(self._frames)}")
+        self._update_scrub_range()
 
-    def _on_extraction_done(self, total: int) -> None:
+    def _on_extraction_done(self, gen: int, total: int) -> None:
+        if gen != self._generation:
+            return
         if self._frames:
             self.show_frame(min(self._current_frame, len(self._frames) - 1))
-        self._scrubber.setRange(0, max(0, len(self._frames) - 1))
+        self._update_scrub_range()
 
-    def _on_mosh_error(self, msg: str) -> None:
+    def _on_mosh_error(self, gen: int, msg: str) -> None:
+        if gen != self._generation:
+            return
         self._display.setText(f"Preview error: {msg}")
         self._last_mosh_id = None  # allow retry
 
     def _cancel_workers(self) -> None:
-        if self._extractor and self._extractor.isRunning():
+        # Bump the generation so any outstanding worker callbacks become no-ops,
+        # then cooperatively stop the extractor (it polls _abort) and detach the
+        # mosh worker. Nothing is terminate()'d: a detached worker safely finishes
+        # into its own per-generation temp file and self-retires via `finished`.
+        self._generation += 1
+        if self._extractor is not None:
             self._extractor.abort()
-            if not self._extractor.wait(1000):
-                self._extractor.terminate()
-                self._extractor.wait(300)
-        if self._mosh_worker and self._mosh_worker.isRunning():
-            if not self._mosh_worker.wait(2000):
-                self._mosh_worker.terminate()
-                self._mosh_worker.wait(300)
+            self._extractor = None
+        self._mosh_worker = None
+
+    def _retire_worker(self, worker) -> None:
+        self._inflight.discard(worker)
+        worker.deleteLater()
+
+    def _purge_preview_files(self, keep_gen: Optional[int] = None) -> None:
+        keep = f"preview_{keep_gen}.avi" if keep_gen is not None else None
+        for f in self._temp_dir.glob("preview_*.avi"):
+            if keep is not None and f.name == keep:
+                continue
+            try:
+                f.unlink()
+            except OSError:
+                pass  # likely still being written by a detached worker; retry later
+
+    def _update_scrub_range(self) -> None:
+        if self._scrubber.isSliderDown():
+            return  # don't fight an active scrub-drag
+        self._scrubber.blockSignals(True)
+        self._scrubber.setRange(0, max(0, len(self._frames) - 1))
+        self._scrubber.blockSignals(False)
+        self._frame_label.setText(f"{self._current_frame + 1}/{len(self._frames)}")
 
     def reset(self) -> None:
         """Cancel in-flight work and clear the display (project new/load)."""
@@ -281,6 +321,12 @@ class PreviewWidget(QWidget):
         self._debounce.stop()
         self._stop_playback()
         self._cancel_workers()
+        # Wait for any detached workers to finish so no QThread is destroyed while
+        # still running (no terminate() — they exit on their own shortly).
+        for worker in list(self._inflight):
+            if worker.isRunning():
+                worker.wait(3000)
+        self._inflight.clear()
         shutil.rmtree(self._temp_dir, ignore_errors=True)
 
     # -- Playback controls -------------------------------------------------
