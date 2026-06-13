@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import shutil
 import struct
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Dict, Optional, Set
+
+# Containers we export by re-encoding the moshed AVI (engine output is always AVI).
+TRANSCODE_SUFFIXES = (".mp4", ".mov")
 
 from PySide6.QtCore import QThread, Signal
 
@@ -107,24 +113,39 @@ class MoshWorker(QThread):
             extras = ready[1:]
             clip_opts = build_clip_options(ready)
 
-            if any(_clip_has_trim(c) for c in ready):
-                self._rewrite_with_trims(ready, clip_opts)
-            else:
-                mosh.rewrite_avi(
-                    base.normalized_path,
-                    self._output,
-                    keep_initial_keyframes=clip_opts[0].keep_initial_keyframes,
-                    duplicate_count=clip_opts[0].duplicate_count,
-                    duplicate_gap=clip_opts[0].duplicate_gap,
-                    extra_inputs=[c.normalized_path for c in extras],
-                    keep_key_indices=None,
-                    drop_key_indices=None,
-                    clip_options=clip_opts,
-                    drop_appended_first=False,
-                    should_abort=lambda: self._abort,
-                )
-            if self._abort:
-                return
+            # The engine only writes AVI; for MP4/MOV we mosh to a temp AVI then
+            # transcode (re-encoding the glitched frames into a clean shareable file).
+            transcode = self._output.suffix.lower() in TRANSCODE_SUFFIXES
+            tmp_dir: Optional[Path] = None
+            avi_target = self._output
+            if transcode:
+                tmp_dir = Path(tempfile.mkdtemp(prefix="datamosh-export-"))
+                avi_target = tmp_dir / "moshed.avi"
+
+            try:
+                if any(_clip_has_trim(c) for c in ready):
+                    self._rewrite_with_trims(ready, clip_opts, avi_target)
+                else:
+                    mosh.rewrite_avi(
+                        base.normalized_path,
+                        avi_target,
+                        keep_initial_keyframes=clip_opts[0].keep_initial_keyframes,
+                        duplicate_count=clip_opts[0].duplicate_count,
+                        duplicate_gap=clip_opts[0].duplicate_gap,
+                        extra_inputs=[c.normalized_path for c in extras],
+                        keep_key_indices=None,
+                        drop_key_indices=None,
+                        clip_options=clip_opts,
+                        drop_appended_first=False,
+                        should_abort=lambda: self._abort,
+                    )
+                if self._abort:
+                    return
+                if transcode:
+                    self._transcode(avi_target, self._output)
+            finally:
+                if tmp_dir is not None:
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
             self.finished_ok.emit(str(self._output))
 
         except mosh.MoshAborted:
@@ -152,6 +173,7 @@ class MoshWorker(QThread):
         self,
         clips: list[ClipProfile],
         clip_opts: Dict[int, mosh.ClipOptions],
+        output: Path,
     ) -> None:
         """Rewrite using timeline segment trims without re-encoding."""
         parsed_cache: dict[Path, mosh.AviStructure] = {}
@@ -211,4 +233,27 @@ class MoshWorker(QThread):
         rebuilt += base_struct.suffix
         mosh.pack_le_uint(rebuilt, 4, len(rebuilt) - 8)
 
-        self._output.write_bytes(bytes(rebuilt))
+        output.write_bytes(bytes(rebuilt))
+
+    def _transcode(self, src_avi: Path, dst: Path) -> None:
+        """Re-encode the moshed AVI into the container implied by dst's suffix.
+
+        Decoding the broken-prediction AVI yields the glitched frames, which we
+        re-encode cleanly to H.264 so the export plays anywhere.
+        """
+        cmd = [
+            "ffmpeg", "-y", "-i", str(src_avi),
+            "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+            "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart",
+            str(dst),
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+        except FileNotFoundError as exc:
+            raise RuntimeError("ffmpeg not found on PATH; cannot export to this format.") from exc
+        if result.returncode != 0:
+            tail = "\n".join((result.stderr or "").strip().splitlines()[-6:])
+            raise RuntimeError(
+                f"Export transcode failed (ffmpeg exit {result.returncode})."
+                + (f"\n\n{tail}" if tail else "")
+            )

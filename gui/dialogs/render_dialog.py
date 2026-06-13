@@ -6,13 +6,22 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QFileDialog,
+    QHBoxLayout,
     QLabel,
     QProgressBar,
     QPushButton,
     QVBoxLayout,
 )
+
+# label, extension, file-dialog filter
+EXPORT_FORMATS = [
+    ("AVI — Xvid (native, fastest)", "avi", "AVI Files (*.avi)"),
+    ("MP4 — H.264 (shareable)", "mp4", "MP4 Files (*.mp4)"),
+    ("MOV — H.264", "mov", "MOV Files (*.mov)"),
+]
 
 from gui.models.project import Project
 from gui.workers.mosh_worker import MoshWorker
@@ -36,6 +45,14 @@ class RenderDialog(QDialog):
         self._info.setWordWrap(True)
         layout.addWidget(self._info)
 
+        fmt_row = QHBoxLayout()
+        fmt_row.addWidget(QLabel("Format:"))
+        self._format = QComboBox()
+        for label, ext, _filter in EXPORT_FORMATS:
+            self._format.addItem(label, ext)
+        fmt_row.addWidget(self._format, 1)
+        layout.addLayout(fmt_row)
+
         self._progress = QProgressBar()
         self._progress.setRange(0, 0)  # indeterminate
         self._progress.hide()
@@ -54,17 +71,23 @@ class RenderDialog(QDialog):
             self._info.setText("Some timeline clips are still normalizing. Please wait.")
             return
 
+        ext = self._format.currentData()
+        flt = next((f for _l, e, f in EXPORT_FORMATS if e == ext), "All Files (*)")
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Moshed AVI", "", "AVI Files (*.avi);;All Files (*)"
+            self, "Save Moshed Video", "", f"{flt};;All Files (*)"
         )
         if not path:
             return
+        out = Path(path)
+        if out.suffix.lower() != f".{ext}":
+            out = out.with_suffix(f".{ext}")
 
         self._btn.setEnabled(False)
         self._progress.show()
-        self._info.setText("Rendering...")
+        self._info.setText("Rendering (transcoding to MP4/MOV may take a little longer)..."
+                           if ext != "avi" else "Rendering...")
 
-        self._worker = MoshWorker(self._project.timeline_render_clips(), Path(path), self)
+        self._worker = MoshWorker(self._project.timeline_render_clips(), out, self)
         self._worker.finished_ok.connect(self._on_done)
         self._worker.error.connect(self._on_error)
         self._worker.finished.connect(self._worker.deleteLater)

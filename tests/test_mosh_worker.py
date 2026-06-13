@@ -155,6 +155,52 @@ def test_mosh_worker_size_overflow_message(qtbot, temp_dir):
         assert "format requires" not in errors[0]
 
 
+def test_mosh_worker_transcodes_to_mp4(qtbot, temp_dir, monkeypatch):
+    """An .mp4 output moshes to a temp AVI, then transcodes via ffmpeg (libx264)."""
+    clip = ClipProfile(source_path=Path("/tmp/a.mp4"), normalized_path=temp_dir / "norm.avi")
+    out = temp_dir / "out.mp4"
+    calls = {}
+
+    def fake_rewrite(src, dst, **kw):
+        calls["rewrite_dst"] = str(dst)
+        Path(dst).write_bytes(b"FAKE-AVI")
+
+    def fake_run(cmd, *a, **k):
+        calls["ffmpeg_cmd"] = cmd
+        Path(cmd[-1]).write_bytes(b"MP4")  # ffmpeg produces the output
+        return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(mosh, "rewrite_avi", fake_rewrite)
+    monkeypatch.setattr("gui.workers.mosh_worker.subprocess.run", fake_run)
+
+    worker = MoshWorker([clip], out)
+    results = []
+    worker.finished_ok.connect(results.append)
+    with qtbot.waitSignal(worker.finished_ok, timeout=5000):
+        worker.start()
+
+    assert results and results[0] == str(out)
+    assert "libx264" in calls["ffmpeg_cmd"]
+    assert calls["rewrite_dst"].endswith(".avi")  # moshed to a temp AVI first
+
+
+def test_mosh_worker_avi_does_not_transcode(qtbot, temp_dir, monkeypatch):
+    clip = ClipProfile(source_path=Path("/tmp/a.mp4"), normalized_path=temp_dir / "norm.avi")
+    out = temp_dir / "out.avi"
+    ran = {"ffmpeg": False}
+
+    monkeypatch.setattr(mosh, "rewrite_avi", lambda src, dst, **k: Path(dst).write_bytes(b"AVI"))
+    monkeypatch.setattr(
+        "gui.workers.mosh_worker.subprocess.run",
+        lambda *a, **k: ran.__setitem__("ffmpeg", True),
+    )
+
+    worker = MoshWorker([clip], out)
+    with qtbot.waitSignal(worker.finished_ok, timeout=5000):
+        worker.start()
+    assert ran["ffmpeg"] is False  # native AVI export skips transcode
+
+
 def test_mosh_worker_non_overflow_struct_error_not_mislabeled(qtbot, temp_dir):
     """A struct.error from corrupt/truncated parsing must NOT claim the 4 GB limit."""
     import struct as _struct
