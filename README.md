@@ -42,11 +42,14 @@ Sample output video:
 Datamosh GUI is a PySide6 desktop editor built for experimental compression-art workflows.
 
 - Build a sequence from multiple clips on a timeline
-- Drag clips from bin to timeline, reorder segments, and cut at playhead
-- Control keyframe behavior per clip or per timeline segment
+- Drag clips from bin to timeline, reorder segments, and cut at playhead (snaps to frames)
+- **Per-segment glitch settings**: each timeline segment can override the clip's
+  keep/duplicate/keyframe settings, so the same clip can appear twice moshed differently
 - Toggle "Drop first I-frame" on individual cuts/segments
 - Duplicate P-frames to push motion-smear and prediction artifacts
 - Preview timeline output before final render
+- **Export** to AVI (native Xvid), or **MP4/MOV** (H.264, re-encoded for easy sharing)
+- **Save/open projects** as `.dmosh` files (clips, timeline, and settings)
 - Undo/redo timeline and settings changes
 
 The app keeps AVI bitstream manipulation in `mosh.py` and uses the GUI as an editor/orchestrator.
