@@ -18,6 +18,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Sync download links to current VERSION
+        run: |
+          VERSION="$(cat VERSION)"
+          sed -i -E "s/Datamosh-[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?-(linux|windows|macos)/Datamosh-${VERSION}-\2/g" docs/index.html
+          sed -i -E "s#// download v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?#// download v${VERSION}#g" docs/index.html
+
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:

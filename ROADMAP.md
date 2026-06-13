@@ -14,6 +14,8 @@ Product direction for Datamosh GUI (timeline-first, experimental mosh workflow).
 - Define expected pass/fail behavior and fallback messaging.
 
 ### 2. Import Strategy UI (Audit + Upgrade)
+> **Status: shipped in v1.1.1** — import options dialog with normalize-all vs. direct-AVI modes, preset/custom controls (width/height/GOP/qscale/audio), and a persistent import profile. Remaining work below is refinement only.
+
 - Audit current import path (auto-normalize to Xvid) and verify edge-case behavior.
 - Add an import options dialog before ingest:
   - Keep original if compatible
@@ -47,6 +49,8 @@ Definition of done:
 ## Phase 3: UI Polish and Workflow Speed
 
 ### 5. Toolbar Refresh
+> **Status: shipped** — the toolbar is now icon-only (`ToolButtonIconOnly`) with tooltips and keyboard accelerators. Remaining work is a custom scalable icon set.
+
 - Replace text actions with icon-first toolbar + tooltips.
 - Keep keyboard shortcuts primary; toolbar as visual accelerator.
 - Add scalable icon set for light/dark readability.
@@ -57,8 +61,12 @@ Definition of done:
 - Background decode/analysis prioritization for active viewport.
 
 ## Near-Term Priority Order
-1. Example media suite + ingest reliability tests
-2. Import strategy dialog and profile system
+1. **Project persistence** — save/load `.dmosh` project files (timeline arrangement + per-clip settings + cuts + injected I-frames). Foundational: today all work is lost on close.
+2. Example media suite + ingest reliability tests
 3. Layered timeline foundation
 4. Opacity/blend modes
-5. Icon toolbar and final UI pass
+5. Custom scalable icon set for the toolbar
+
+### Already shipped
+- Import strategy dialog and persistent import profiles (v1.1.1)
+- Icon-first toolbar with tooltips and accelerators

@@ -2,7 +2,23 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased] - 2026-02-17
+## [Unreleased]
+
+## [1.1.5] - 2026-02-28
+
+### Fixed
+- Temp directories from normalization and I-frame injection are now cleaned up when a clip is removed, preventing `/tmp` accumulation over long sessions.
+- Video info probing (fps, frame count, dimensions) moved off the Qt main thread — no more UI freeze after importing clips.
+- Timeline scroll wheel now pans; `Ctrl+wheel` zooms (was inverted vs. shortcut docs).
+- Clip list view now highlights the correct row when a timeline clip is clicked.
+- Settings panel controls are now disabled when no clip is selected (prevented silent no-op slider interactions).
+- "Cut At Playhead" context menu item disabled on empty timeline.
+- `UpdateWorker` exceptions no longer permanently block future update checks.
+- OpenCV video capture handle always released via `finally` (prevents file lock on Windows).
+- `RenderDialog` stops its render worker when the dialog is closed mid-render.
+- Drag-reorder MIME data parse is now validated; malformed drops return `False` cleanly.
+- Undo/redo stacks use `deque(maxlen=200)` for O(1) eviction.
+- Timeline hint text contrast raised to meet WCAG AA minimum.
 
 ## [1.1.4] - 2026-02-18
 
