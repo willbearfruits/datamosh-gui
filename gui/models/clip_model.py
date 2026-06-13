@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QAbstractListModel, QMimeData, QModelIndex, Qt
+from PySide6.QtCore import QAbstractListModel, QMimeData, QModelIndex, Qt, Signal
 from PySide6.QtGui import QPixmap
 
 
@@ -58,6 +58,11 @@ class ClipListModel(QAbstractListModel):
     """List model for ClipProfile objects with drag-reorder support."""
 
     MIME_TYPE = "application/x-datamosh-clip-index"
+
+    # Emitted on a drag-drop reorder request (source_row, target_row). The owning
+    # Project performs the actual move so the reorder is undoable and keeps the
+    # selection / preview in sync — see Project._on_clips_reordered.
+    reorder_requested = Signal(int, int)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -162,5 +167,7 @@ class ClipListModel(QAbstractListModel):
         target = row if row >= 0 else self.rowCount()
         if source_row < target:
             target -= 1
-        self.move_clip(source_row, target)
+        # Hand the move to the owning Project (records undo, fixes selection,
+        # emits clips_changed). It calls back into move_clip to mutate the list.
+        self.reorder_requested.emit(source_row, target)
         return True

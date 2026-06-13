@@ -197,6 +197,7 @@ class MainWindow(QMainWindow):
             self.preview_widget.shutdown()
             self.timeline_widget.shutdown()
             self.clip_panel.shutdown()
+            self.project.cleanup_all()
             if self._update_worker and self._update_worker.isRunning():
                 self._update_worker.quit()
                 if not self._update_worker.wait(1000):

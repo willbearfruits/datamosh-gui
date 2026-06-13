@@ -54,6 +54,11 @@ class Project(QObject):
         self._undo_stack: deque[ProjectSnapshot] = deque(maxlen=self._history_limit)
         self._redo_stack: deque[ProjectSnapshot] = deque(maxlen=self._history_limit)
         self._restoring_history = False
+        # Clips removed from the model but possibly still referenced by undo/redo
+        # history. Their temp dirs are reaped only once truly unreachable, so an
+        # undo can never restore a clip whose normalized media file was deleted.
+        self._pending_temp_cleanup: list[ClipProfile] = []
+        self.clip_model.reorder_requested.connect(self._on_clips_reordered)
 
     # -- Properties --------------------------------------------------------
 
@@ -124,39 +129,68 @@ class Project(QObject):
             return
         if record_undo:
             self._record_undo_state()
-        clip.cleanup()
+        # Defer temp-dir cleanup: the just-recorded undo snapshot still holds this
+        # clip (with its normalized_path), so deleting its temp dir now would make a
+        # later undo restore a clip whose media file is gone. Reap once unreachable.
+        if clip.temp_dir is not None and clip not in self._pending_temp_cleanup:
+            self._pending_temp_cleanup.append(clip)
         self.clip_model.remove_clip(row)
         self.clips_changed.emit()
 
-        if clip is not None:
-            removed = 0
-            kept: list[TimelineItem] = []
-            for item in self._timeline:
-                if item.clip is clip:
-                    removed += 1
-                else:
-                    kept.append(item)
-            if removed:
-                old_sel = self._selected_timeline_index
-                self._timeline = kept
-                if not self._timeline:
-                    self._selected_timeline_index = -1
-                elif old_sel >= len(self._timeline):
-                    self._selected_timeline_index = len(self._timeline) - 1
-                self.timeline_changed.emit()
-                self.timeline_item_selected.emit(self._selected_timeline_index)
+        removed = 0
+        kept: list[TimelineItem] = []
+        for item in self._timeline:
+            if item.clip is clip:
+                removed += 1
+            else:
+                kept.append(item)
+        if removed:
+            old_sel = self._selected_timeline_index
+            self._timeline = kept
+            if not self._timeline:
+                self._selected_timeline_index = -1
+            elif old_sel >= len(self._timeline):
+                self._selected_timeline_index = len(self._timeline) - 1
+            self.timeline_changed.emit()
+            self.timeline_item_selected.emit(self._selected_timeline_index)
 
-        if row == self._selected_row:
-            new = min(row, self.clip_model.rowCount() - 1)
-            self.select_clip(new)
-        elif row < self._selected_row:
-            self._selected_row -= 1
+        # Keep selection bound to the correct clip. When the removed row is at or
+        # before the selection, the clip now occupying that slot (or the shifted
+        # selected clip) differs from what the settings panel is bound to, so force
+        # a re-emit even when the row index is numerically unchanged.
+        old = self._selected_row
+        if old >= 0 and row <= old:
+            count = self.clip_model.rowCount()
+            if count == 0:
+                new = -1
+            elif row < old:
+                new = old - 1
+            else:  # row == old
+                new = min(row, count - 1)
+            self.select_clip(new, force=True)
 
-    def select_clip(self, row: int) -> None:
-        if row == self._selected_row:
+        self._reap_temp_dirs()
+
+    def select_clip(self, row: int, *, force: bool = False) -> None:
+        if row == self._selected_row and not force:
             return
         self._selected_row = row
         self.clip_selected.emit(row)
+
+    def _on_clips_reordered(self, source_row: int, target_row: int) -> None:
+        """Perform a drag-drop reorder requested by the clip model: record undo,
+        move the clip, and rebind the selection to its new row. The model itself
+        only emits the request so the reorder stays undoable and in sync."""
+        n = self.clip_model.rowCount()
+        if source_row == target_row or not (0 <= source_row < n and 0 <= target_row < n):
+            return
+        self._record_undo_state()
+        selected_clip = self.clip_model.clip_at(self._selected_row)
+        self.clip_model.move_clip(source_row, target_row)
+        new_row = self.row_for_clip(selected_clip) if selected_clip is not None else -1
+        # Force a re-emit so the settings panel rebinds to the moved clip's new row.
+        self.select_clip(new_row, force=True)
+        self.clips_changed.emit()
 
     def notify_clip_updated(self, row: int, *, record_undo: bool = True) -> None:
         if not (0 <= row < self.clip_model.rowCount()):
@@ -354,6 +388,7 @@ class Project(QObject):
         self._redo_stack.append(current)
         self._restore_snapshot(previous)
         self._emit_history_changed()
+        self._reap_temp_dirs()
         return True
 
     def redo(self) -> bool:
@@ -364,6 +399,7 @@ class Project(QObject):
         self._undo_stack.append(current)
         self._restore_snapshot(nxt)
         self._emit_history_changed()
+        self._reap_temp_dirs()
         return True
 
     def _record_undo_state(self) -> None:
@@ -372,6 +408,44 @@ class Project(QObject):
         self._undo_stack.append(self._capture_snapshot())
         self._redo_stack.clear()
         self._emit_history_changed()
+        self._reap_temp_dirs()
+
+    def _referenced_clip_ids(self) -> set[int]:
+        """ids of clips reachable from the live list or undo/redo history."""
+        ids = {id(c) for c in self.clips}
+        for snap in self._undo_stack:
+            ids.update(id(c) for c in snap.clips)
+        for snap in self._redo_stack:
+            ids.update(id(c) for c in snap.clips)
+        return ids
+
+    def _reap_temp_dirs(self) -> None:
+        """Delete temp dirs of removed clips no longer reachable from the live list
+        or undo/redo history, so an undo can never resurrect deleted media."""
+        if not self._pending_temp_cleanup:
+            return
+        referenced = self._referenced_clip_ids()
+        still_pending: list[ClipProfile] = []
+        for clip in self._pending_temp_cleanup:
+            if id(clip) in referenced:
+                still_pending.append(clip)
+            else:
+                clip.cleanup()
+        self._pending_temp_cleanup = still_pending
+
+    def cleanup_all(self) -> None:
+        """Delete every temp dir owned by this session. Call on app shutdown."""
+        seen: set[int] = set()
+        groups: list[list[ClipProfile]] = [list(self.clips), self._pending_temp_cleanup]
+        groups += [snap.clips for snap in self._undo_stack]
+        groups += [snap.clips for snap in self._redo_stack]
+        for group in groups:
+            for clip in group:
+                if id(clip) in seen:
+                    continue
+                seen.add(id(clip))
+                clip.cleanup()
+        self._pending_temp_cleanup = []
 
     def _capture_snapshot(self) -> ProjectSnapshot:
         clips = list(self.clips)
