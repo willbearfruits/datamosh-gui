@@ -35,7 +35,7 @@ Tests are in `tests/` with markers `integration` (requires real video files), `g
 
 ## Architecture
 
-The application has two layers: a pure binary AVI manipulation engine (`mosh.py`, treat as stable/untouched) and a PySide6 GUI (`gui/`, `main.py`).
+The application has two layers: a pure binary AVI manipulation engine (`mosh.py`) and a PySide6 GUI (`gui/`, `main.py`). `mosh.py` is the most safety-critical code — change it with care and keep `tests/test_mosh*.py` green; it must still round-trip its own normalized output byte-for-byte.
 
 ### Core engine (`mosh.py`)
 Operates directly on the RIFF/AVI binary format — no video decoding. Pipeline:
@@ -97,4 +97,4 @@ Multiple clips concatenated at chunk level, each tagged with `clip_id` for indep
 - `ffmpeg` and `ffprobe` must be on PATH.
 - `opencv-python-headless` is used for frame extraction; falls back to ffmpeg pipe if unavailable.
 - Output format is always AVI (Xvid). MP4/WebM export not implemented.
-- `mosh.py` must not be modified — the GUI wraps it via `MoshWorker`.
+- `mosh.py` is the core engine, wrapped by `MoshWorker`. It may be modified, but carefully: keep its round-trip behavior intact and `tests/test_mosh*.py` green. idx1 is treated as advisory (used only for keyframe flags); output is capped at the 4 GB AVI limit with a clear error.

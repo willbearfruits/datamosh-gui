@@ -94,12 +94,13 @@ def pack_le_uint(buffer: bytearray, offset: int, value: int) -> None:
     struct.pack_into("<I", buffer, offset, value)
 
 
-def locate_chunks(data: bytes) -> tuple[int, int, int, int]:
+def locate_chunks(data: bytes) -> tuple[int, int, Optional[int], Optional[int]]:
     """
-    Locate the LIST movi and idx1 chunks.
+    Locate the LIST movi and (optional) idx1 chunks.
 
     Returns:
-        (movi_pos, movi_size, idx1_pos, idx1_size)
+        (movi_pos, movi_size, idx1_pos, idx1_size) — idx1_pos/idx1_size are None
+        when the file has no legacy idx1 (e.g. OpenDML-indexed sources).
     """
     pos = 12  # Skip RIFF header.
     movi_pos = movi_size = idx1_pos = idx1_size = None  # type: ignore
@@ -128,9 +129,8 @@ def locate_chunks(data: bytes) -> tuple[int, int, int, int]:
 
     if movi_pos is None:
         raise AviParseError("LIST movi chunk not found")
-    if idx1_pos is None:
-        raise AviParseError("idx1 chunk not found")
-
+    # idx1 is optional: OpenDML files index via indx/ix## and some muxers omit it.
+    # When absent we parse the movi structurally and write a fresh idx1 on rebuild.
     return movi_pos, movi_size, idx1_pos, idx1_size
 
 
@@ -145,8 +145,7 @@ def parse_idx1(data: bytes, idx1_pos: int, idx1_size: int) -> List[tuple[bytes, 
         size = read_le_uint(data, pos + 12)
         entries.append((chunk_id, flags, offset, size))
         pos += 16
-    if pos != end:
-        raise AviParseError("idx1 chunk has trailing bytes")
+    # Any sub-16-byte tail is tolerated (some muxers pad idx1); we just stop.
     return entries
 
 
@@ -181,21 +180,20 @@ def parse_movi_chunks(
 
         if chunk_data_end > payload_len:
             raise AviParseError("Chunk exceeds movi payload size")
-        if entry_idx >= len(idx_entries):
-            raise AviParseError("idx1 has fewer entries than movi chunks")
 
-        idx_chunk_id, flags, offset, size_from_idx = idx_entries[entry_idx]
-        # Validate metadata matches the index.
-        if idx_chunk_id != chunk_id:
-            raise AviParseError("movi chunk order does not match idx1")
-        if size_from_idx != chunk_size:
-            raise AviParseError("Chunk size mismatch between movi and idx1")
-        # idx1 offsets are measured from the start of the LIST movi chunk header
-        # plus four bytes for the 'movi' tag. Given pos is measured from the start
-        # of the movi payload, the expected offset is pos + 4.
-        expected_offset = pos + 4
-        if offset != expected_offset:
-            raise AviParseError("Chunk offset mismatch between movi and idx1")
+        # idx1 is advisory and used ONLY for the per-chunk keyframe flag. Its
+        # offsets and sizes are ignored (both are rebuilt on write), and a
+        # missing / extra / reordered entry is tolerated rather than fatal: a chunk
+        # with no positional idx1 match simply defaults to a non-keyframe. This
+        # accepts spec-valid AVIs whose idx1 uses absolute (file-relative) offsets,
+        # or which omit/duplicate index entries — cases the old strict 1:1 lockstep
+        # walk rejected outright.
+        flags = 0
+        if entry_idx < len(idx_entries):
+            idx_chunk_id, idx_flags, _idx_offset, _idx_size = idx_entries[entry_idx]
+            if idx_chunk_id == chunk_id:
+                flags = idx_flags
+                entry_idx += 1
 
         chunk_data = movi_payload[chunk_data_start:chunk_data_end]
         stream_id = _parse_stream_id(chunk_id)
@@ -215,13 +213,9 @@ def parse_movi_chunks(
             )
         )
 
-        entry_idx += 1
         pos = chunk_data_end
         if chunk_size % 2 == 1:
             pos += 1  # Skip padding byte.
-
-    if entry_idx != len(idx_entries):
-        raise AviParseError("idx1 contains extra entries after parsing movi")
 
     return chunks
 
@@ -233,12 +227,22 @@ def parse_avi_file(path: Path, clip_id: int) -> AviStructure:
 
     movi_pos, movi_size, idx1_pos, idx1_size = locate_chunks(data)
     movi_payload = data[movi_pos + 12 : movi_pos + 8 + movi_size]
-    idx_entries = parse_idx1(data, idx1_pos, idx1_size)
+    if idx1_pos is not None:
+        idx_entries = parse_idx1(data, idx1_pos, idx1_size)
+    else:
+        idx_entries = []
     chunks = parse_movi_chunks(movi_payload, idx_entries, clip_id=clip_id)
 
     prefix = bytearray(data[:movi_pos])
-    between = data[movi_pos + 8 + movi_size : idx1_pos]
-    suffix = data[idx1_pos + 8 + idx1_size :]
+    movi_end = movi_pos + 8 + movi_size
+    if idx1_pos is not None:
+        between = data[movi_end:idx1_pos]
+        suffix = data[idx1_pos + 8 + idx1_size :]
+    else:
+        # No idx1 in the source: keep everything after movi as suffix; the rebuild
+        # inserts a fresh idx1 right after the movi section.
+        between = b""
+        suffix = data[movi_end:]
     return AviStructure(prefix=prefix, between=between, suffix=suffix, chunks=chunks)
 
 
@@ -384,11 +388,16 @@ def process_chunks(
 
         if chunk.is_keyframe:
             clip_key_index = per_clip_key_index[clip_id]
+            # Keyframe keep/drop precedence, highest first:
+            #   1. explicit drop  (drop_specific_keys / drop_key_indices)
+            #   2. explicit keep  (keep_specific_keys / keep_key_indices)
+            #   3. implicit drop_first_keyframe (drops keyframe ordinal 0)
+            #   4. keep-initial limit (drops keyframes past the kept budget)
+            # So an explicitly kept ordinal 0 now survives drop_first, and an index
+            # listed in BOTH keep and drop is dropped (explicit drop wins). With no
+            # explicit sets, behavior is unchanged: drop_first + limit as before.
             keep = True
-
-            if clip_drop_first and clip_key_index == 0:
-                keep = False
-            elif clip_drop_set is not None and clip_key_index in clip_drop_set:
+            if clip_drop_set is not None and clip_key_index in clip_drop_set:
                 keep = False
             elif drop_key_indices is not None and global_key_index in drop_key_indices:
                 keep = False
@@ -396,6 +405,8 @@ def process_chunks(
                 keep = True
             elif keep_key_indices is not None and global_key_index in keep_key_indices:
                 keep = True
+            elif clip_drop_first and clip_key_index == 0:
+                keep = False
             elif per_clip_keys_kept[clip_id] >= clip_keep_limit:
                 keep = False
 
@@ -448,6 +459,11 @@ def build_movi_and_index(
         if chunk.is_video:
             video_frames += 1
 
+    if 4 + len(movi_payload) > 0xFFFFFFFF:
+        raise AviParseError(
+            "Output exceeds the 4 GB AVI size limit. Reduce the duplicate count, "
+            "increase the duplicate gap, or shorten the clips."
+        )
     movi_chunk = (
         b"LIST"
         + struct.pack("<I", 4 + len(movi_payload))
@@ -531,11 +547,27 @@ def normalize_to_xvid(
     cmd.append(str(dst))
 
     try:
-        subprocess.run(cmd, check=True)
-    except FileNotFoundError as exc:  # pragma: no cover - CLI error path.
-        raise RuntimeError("ffmpeg binary not found on PATH") from exc
-    except subprocess.CalledProcessError as exc:  # pragma: no cover - CLI error path.
-        raise RuntimeError(f"ffmpeg failed with exit code {exc.returncode}") from exc
+        result = subprocess.run(cmd, capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            f"ffmpeg binary not found (looked for '{ffmpeg_bin}' on PATH). "
+            "Install ffmpeg and ensure it is on your PATH."
+        ) from exc
+
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        tail = "\n".join(stderr.splitlines()[-6:])
+        lowered = stderr.lower()
+        if "unknown encoder" in lowered and "libxvid" in lowered:
+            raise RuntimeError(
+                "This ffmpeg build has no 'libxvid' encoder, which Datamosh requires. "
+                "Install a full ffmpeg build that includes libxvid (e.g. the GPL build)."
+                + (f"\n\n{tail}" if tail else "")
+            )
+        message = f"ffmpeg failed (exit code {result.returncode})."
+        if tail:
+            message += f"\n\n{tail}"
+        raise RuntimeError(message)
 
 
 def rewrite_avi(
@@ -579,6 +611,11 @@ def rewrite_avi(
     rebuilt += idx_chunk
     rebuilt += base.suffix
 
+    if len(rebuilt) - 8 > 0xFFFFFFFF:
+        raise AviParseError(
+            "Output exceeds the 4 GB AVI size limit. Reduce the duplicate count, "
+            "increase the duplicate gap, or shorten the clips."
+        )
     pack_le_uint(rebuilt, 4, len(rebuilt) - 8)  # Update RIFF size.
 
     output_path.write_bytes(bytes(rebuilt))
