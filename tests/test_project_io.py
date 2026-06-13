@@ -125,6 +125,44 @@ def test_open_over_session_reclaims_old_temp_dirs(project, tmp_path):
     assert str(project.clips[0].source_path).endswith("new.mp4")
 
 
+def test_per_segment_override_applies_in_render(project):
+    a = ClipProfile(source_path=Path("/tmp/a.mp4"), duplicate_count=0)
+    project.add_clip(a)  # add_to_timeline -> one timeline item
+    assert len(project.timeline_items) == 1
+    assert project.update_timeline_item_settings(
+        0, keep_first=2, duplicate_count=5, duplicate_gap=3, keep_keys_spec="", drop_keys_spec=""
+    )
+    segs = project.timeline_render_clips()
+    assert segs[0].duplicate_count == 5 and segs[0].keep_first == 2 and segs[0].duplicate_gap == 3
+    assert a.duplicate_count == 0  # the source clip itself is untouched
+
+
+def test_per_segment_override_undoable(project):
+    a = ClipProfile(source_path=Path("/tmp/a.mp4"))
+    project.add_clip(a)
+    project.update_timeline_item_settings(
+        0, keep_first=0, duplicate_count=5, duplicate_gap=1, keep_keys_spec="", drop_keys_spec=""
+    )
+    assert project.timeline_items[0].duplicate_count_override == 5
+    assert project.undo()
+    assert project.timeline_items[0].duplicate_count_override is None  # back to inherit
+
+
+def test_per_segment_overrides_roundtrip(project):
+    a = ClipProfile(source_path=Path("/tmp/a.mp4"))
+    project.add_clip(a)
+    project.update_timeline_item_settings(
+        0, keep_first=1, duplicate_count=7, duplicate_gap=2, keep_keys_spec="0,3", drop_keys_spec="5"
+    )
+    data = project_io.serialize(project, {}, "1.1.5")
+    assert data["timeline"][0]["duplicate_count_override"] == 7
+    p2 = Project()
+    p2.install_loaded_state(data)
+    item = p2.timeline_items[0]
+    assert item.duplicate_count_override == 7 and item.keep_first_override == 1
+    assert item.keep_keys_spec_override == "0,3" and item.drop_keys_spec_override == "5"
+
+
 def test_read_rejects_non_project(tmp_path):
     p = tmp_path / "x.dmosh"
     p.write_text('{"hello": 1}', encoding="utf-8")

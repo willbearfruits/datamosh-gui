@@ -171,17 +171,20 @@ class SettingsPanel(QWidget):
         self._set_controls_enabled(True)
         self._refresh_clip_label(clip.label())
 
+        # When a timeline segment is selected, show its effective (per-segment) values.
+        eff = self._effective_settings(clip)
+
         # Block signals while populating
         for w in (self._keep_first.spin, self._dup_count.spin, self._dup_gap.spin,
                   self._drop_first_kf, self._keep_keys, self._drop_keys):
             w.blockSignals(True)
 
-        self._keep_first.set_value(clip.keep_first)
-        self._dup_count.set_value(clip.duplicate_count)
-        self._dup_gap.set_value(clip.duplicate_gap)
+        self._keep_first.set_value(eff["keep_first"])
+        self._dup_count.set_value(eff["duplicate_count"])
+        self._dup_gap.set_value(eff["duplicate_gap"])
         self._drop_first_kf.setChecked(self._effective_drop_first_for_ui(clip))
-        self._keep_keys.setText(clip.keep_keys_spec)
-        self._drop_keys.setText(clip.drop_keys_spec)
+        self._keep_keys.setText(eff["keep_keys_spec"])
+        self._drop_keys.setText(eff["drop_keys_spec"])
 
         for w in (self._keep_first.spin, self._dup_count.spin, self._dup_gap.spin,
                   self._drop_first_kf, self._keep_keys, self._drop_keys):
@@ -206,17 +209,60 @@ class SettingsPanel(QWidget):
         self._debounce.stop()
         self._apply_drop_first()
 
+    def _effective_settings(self, clip) -> dict:
+        """Effective glitch values: the selected segment's override if set, else the
+        clip's value. With no segment selected, just the clip's values."""
+        seg = None
+        if self._timeline_item_matches_current_clip():
+            seg = self._project.timeline_items[self._current_timeline_index]
+
+        def pick(override, base):
+            return base if override is None else override
+
+        if seg is None:
+            return {
+                "keep_first": clip.keep_first,
+                "duplicate_count": clip.duplicate_count,
+                "duplicate_gap": clip.duplicate_gap,
+                "keep_keys_spec": clip.keep_keys_spec,
+                "drop_keys_spec": clip.drop_keys_spec,
+            }
+        return {
+            "keep_first": pick(seg.keep_first_override, clip.keep_first),
+            "duplicate_count": pick(seg.duplicate_count_override, clip.duplicate_count),
+            "duplicate_gap": pick(seg.duplicate_gap_override, clip.duplicate_gap),
+            "keep_keys_spec": pick(seg.keep_keys_spec_override, clip.keep_keys_spec),
+            "drop_keys_spec": pick(seg.drop_keys_spec_override, clip.drop_keys_spec),
+        }
+
     def _push_settings(self) -> None:
         clip = self._project.clip_model.clip_at(self._current_row)
         if not clip:
             return
         self._project.begin_undo_step()
-        clip.keep_first = self._keep_first.value()
-        clip.duplicate_count = self._dup_count.value()
-        clip.duplicate_gap = self._dup_gap.value()
+        keep_first = self._keep_first.value()
+        dup_count = self._dup_count.value()
+        dup_gap = self._dup_gap.value()
+        keep_keys = self._keep_keys.text().strip()
+        drop_keys = self._drop_keys.text().strip()
+        if self._timeline_item_matches_current_clip():
+            # Per-segment: store overrides on the selected timeline item.
+            self._project.update_timeline_item_settings(
+                self._current_timeline_index,
+                keep_first=keep_first,
+                duplicate_count=dup_count,
+                duplicate_gap=dup_gap,
+                keep_keys_spec=keep_keys,
+                drop_keys_spec=drop_keys,
+                record_undo=False,
+            )
+        else:
+            clip.keep_first = keep_first
+            clip.duplicate_count = dup_count
+            clip.duplicate_gap = dup_gap
+            clip.keep_keys_spec = keep_keys
+            clip.drop_keys_spec = drop_keys
         self._apply_drop_first(record_undo=False, emit_notify=False)
-        clip.keep_keys_spec = self._keep_keys.text().strip()
-        clip.drop_keys_spec = self._drop_keys.text().strip()
         self._project.notify_clip_updated(self._current_row, record_undo=False)
 
     def _apply_drop_first(self, *, record_undo: bool = True, emit_notify: bool = True) -> None:

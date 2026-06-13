@@ -54,6 +54,11 @@ def serialize(project, import_settings: dict[str, Any], app_version: str) -> dic
             "in_frame": item.in_frame,
             "out_frame": item.out_frame,
             "drop_first_keyframe_override": item.drop_first_keyframe_override,
+            "keep_first_override": item.keep_first_override,
+            "duplicate_count_override": item.duplicate_count_override,
+            "duplicate_gap_override": item.duplicate_gap_override,
+            "keep_keys_spec_override": item.keep_keys_spec_override,
+            "drop_keys_spec_override": item.drop_keys_spec_override,
         })
 
     return {

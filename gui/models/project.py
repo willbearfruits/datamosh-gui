@@ -14,12 +14,22 @@ from gui.models.clip_model import ClipListModel, ClipProfile
 
 @dataclass
 class TimelineItem:
-    """One timeline segment referencing a source clip."""
+    """One timeline segment referencing a source clip.
+
+    Glitch settings are per-segment: each ``*_override`` is None to inherit the
+    source clip's value, or a concrete value that wins for this segment only. This
+    lets the same clip appear twice on the timeline with different mosh settings.
+    """
 
     clip: ClipProfile
     in_frame: int = 0
     out_frame: int = 0  # exclusive; 0 means "full clip"
     drop_first_keyframe_override: Optional[bool] = None
+    keep_first_override: Optional[int] = None
+    duplicate_count_override: Optional[int] = None
+    duplicate_gap_override: Optional[int] = None
+    keep_keys_spec_override: Optional[str] = None
+    drop_keys_spec_override: Optional[str] = None
 
 
 @dataclass
@@ -28,7 +38,7 @@ class ProjectSnapshot:
 
     clips: list[ClipProfile]
     clip_states: list[tuple[int, int, int, bool, str, str]]
-    timeline: list[tuple[int, int, int, Optional[bool]]]
+    timeline: list[dict]
     selected_row: int
     selected_timeline_index: int
 
@@ -368,6 +378,43 @@ class Project(QObject):
         self.timeline_changed.emit()
         return True
 
+    def update_timeline_item_settings(
+        self,
+        index: int,
+        *,
+        keep_first: int,
+        duplicate_count: int,
+        duplicate_gap: int,
+        keep_keys_spec: str,
+        drop_keys_spec: str,
+        record_undo: bool = True,
+    ) -> bool:
+        """Set a timeline segment's per-segment glitch overrides. No-op if unchanged."""
+        if not (0 <= index < len(self._timeline)):
+            return False
+        item = self._timeline[index]
+        new = (keep_first, duplicate_count, duplicate_gap, keep_keys_spec, drop_keys_spec)
+        cur = (
+            item.keep_first_override,
+            item.duplicate_count_override,
+            item.duplicate_gap_override,
+            item.keep_keys_spec_override,
+            item.drop_keys_spec_override,
+        )
+        if new == cur:
+            return False
+        if record_undo:
+            self._record_undo_state()
+        (
+            item.keep_first_override,
+            item.duplicate_count_override,
+            item.duplicate_gap_override,
+            item.keep_keys_spec_override,
+            item.drop_keys_spec_override,
+        ) = new
+        self.timeline_changed.emit()
+        return True
+
     def timeline_item_effective_drop_first(self, index: int) -> Optional[bool]:
         if not (0 <= index < len(self._timeline)):
             return None
@@ -384,6 +431,17 @@ class Project(QObject):
             seg.trim_start_frame = max(0, item.in_frame)
             seg.trim_end_frame = max(0, item.out_frame)
             seg.drop_first_keyframe_override = item.drop_first_keyframe_override
+            # Apply per-segment glitch overrides (None = inherit the clip's value).
+            if item.keep_first_override is not None:
+                seg.keep_first = item.keep_first_override
+            if item.duplicate_count_override is not None:
+                seg.duplicate_count = item.duplicate_count_override
+            if item.duplicate_gap_override is not None:
+                seg.duplicate_gap = item.duplicate_gap_override
+            if item.keep_keys_spec_override is not None:
+                seg.keep_keys_spec = item.keep_keys_spec_override
+            if item.drop_keys_spec_override is not None:
+                seg.drop_keys_spec = item.drop_keys_spec_override
             out.append(seg)
         return out
 
@@ -474,19 +532,22 @@ class Project(QObject):
             for c in clips
         ]
         idx_map = {id(c): i for i, c in enumerate(clips)}
-        timeline: list[tuple[int, int, int, Optional[bool]]] = []
+        timeline: list[dict] = []
         for item in self._timeline:
             clip_idx = idx_map.get(id(item.clip))
             if clip_idx is None:
                 continue
-            timeline.append(
-                (
-                    clip_idx,
-                    item.in_frame,
-                    item.out_frame,
-                    item.drop_first_keyframe_override,
-                )
-            )
+            timeline.append({
+                "clip_idx": clip_idx,
+                "in_frame": item.in_frame,
+                "out_frame": item.out_frame,
+                "drop_first_keyframe_override": item.drop_first_keyframe_override,
+                "keep_first_override": item.keep_first_override,
+                "duplicate_count_override": item.duplicate_count_override,
+                "duplicate_gap_override": item.duplicate_gap_override,
+                "keep_keys_spec_override": item.keep_keys_spec_override,
+                "drop_keys_spec_override": item.drop_keys_spec_override,
+            })
 
         return ProjectSnapshot(
             clips=clips,
@@ -512,14 +573,20 @@ class Project(QObject):
                 ) = state
 
             timeline: list[TimelineItem] = []
-            for clip_idx, in_frame, out_frame, drop_override in snap.timeline:
+            for entry in snap.timeline:
+                clip_idx = entry["clip_idx"]
                 if 0 <= clip_idx < len(clips):
                     timeline.append(
                         TimelineItem(
                             clip=clips[clip_idx],
-                            in_frame=in_frame,
-                            out_frame=out_frame,
-                            drop_first_keyframe_override=drop_override,
+                            in_frame=entry["in_frame"],
+                            out_frame=entry["out_frame"],
+                            drop_first_keyframe_override=entry["drop_first_keyframe_override"],
+                            keep_first_override=entry["keep_first_override"],
+                            duplicate_count_override=entry["duplicate_count_override"],
+                            duplicate_gap_override=entry["duplicate_gap_override"],
+                            keep_keys_spec_override=entry["keep_keys_spec_override"],
+                            drop_keys_spec_override=entry["drop_keys_spec_override"],
                         )
                     )
             self._timeline = timeline
@@ -609,11 +676,18 @@ class Project(QObject):
                     continue
                 ci = spec.get("clip_index", -1)
                 if isinstance(ci, int) and 0 <= ci < len(clips):
+                    opt_int = lambda v: None if v is None else int(v)
+                    opt_str = lambda v: None if v is None else str(v)
                     timeline.append(TimelineItem(
                         clip=clips[ci],
                         in_frame=int(spec.get("in_frame", 0) or 0),
                         out_frame=int(spec.get("out_frame", 0) or 0),
                         drop_first_keyframe_override=spec.get("drop_first_keyframe_override"),
+                        keep_first_override=opt_int(spec.get("keep_first_override")),
+                        duplicate_count_override=opt_int(spec.get("duplicate_count_override")),
+                        duplicate_gap_override=opt_int(spec.get("duplicate_gap_override")),
+                        keep_keys_spec_override=opt_str(spec.get("keep_keys_spec_override")),
+                        drop_keys_spec_override=opt_str(spec.get("drop_keys_spec_override")),
                     ))
             self._timeline = timeline
             sr = data.get("selected_row", -1)
