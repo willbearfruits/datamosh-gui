@@ -60,6 +60,30 @@ def test_playhead_start_maps_to_frame_zero(canvas):
     assert local_frame == 0
 
 
+def test_refresh_region_uses_segment_override(qtbot):
+    # The timeline region (and thus its viz/duration) must reflect the per-segment
+    # glitch override, not the source clip's value.
+    from pathlib import Path
+    from gui.widgets.timeline_widget import TimelineWidget
+    from gui.models.project import Project
+    from gui.models.clip_model import ClipProfile
+
+    p = Project()
+    tw = TimelineWidget(p)
+    qtbot.addWidget(tw)
+    clip = ClipProfile(
+        source_path=Path("/tmp/a.mp4"), duplicate_count=0,
+        total_frames=100, normalized_path=Path("/tmp/n.avi"),
+    )
+    p.add_clip(clip)  # creates a timeline item
+    p.update_timeline_item_settings(
+        0, keep_first=0, duplicate_count=4, duplicate_gap=1, keep_keys_spec="", drop_keys_spec=""
+    )
+    tw.refresh()
+    region = tw._canvas._regions[0]
+    assert region.dup_count == 4  # segment override wins over the clip's 0
+
+
 def test_playhead_snaps_to_frame(canvas):
     region = _region(source_frames=100, output_frames=100, fps=25.0)
     canvas._regions = [region]

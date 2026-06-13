@@ -520,43 +520,55 @@ class TimelineCanvas(QWidget):
         px_per_frame = clip_w / n
 
         if px_per_frame >= 3:
+            # Lay frames out proportional to their OUTPUT contribution, so only the
+            # frames that are actually duplicated look longer and kept I-frames stay
+            # normal width: a duplicated P-frame spans (1 + dup_count) output frames,
+            # a normal frame spans 1, and a dropped keyframe spans 0 (thin marker).
+            keep_limit = _effective_keep_limit(r.keep_first, r.drop_first)
+            spans: list[tuple[FrameInfo, int, bool]] = []  # (frame, output_span, is_dup)
             key_count = 0
             p_count = 0
-            keep_limit = _effective_keep_limit(r.keep_first, r.drop_first)
-            for i, frame in enumerate(r.frames):
-                fx = x_offset + i * px_per_frame
-                if fx > x_offset + clip_w:
-                    break
-
+            for frame in r.frames:
+                is_dup = False
                 if frame.is_keyframe:
-                    keep_key = key_count < keep_limit
-                    if r.drop_first and key_count == 0:
-                        keep_key = False
-                    color = KEPT_KEY if keep_key else DROPPED_KEY
-                    bar_h = height
+                    kept = key_count < keep_limit and not (r.drop_first and key_count == 0)
                     key_count += 1
+                    span = 1 if kept else 0
+                else:
+                    p_count += 1
+                    is_dup = r.dup_count > 0 and r.dup_gap > 0 and (p_count % r.dup_gap == 0)
+                    span = 1 + (r.dup_count if is_dup else 0)
+                spans.append((frame, span, is_dup))
+
+            total_span = sum(s for _f, s, _d in spans) or 1
+            px_per_unit = clip_w / total_span
+            x = x_offset
+            for frame, span, is_dup in spans:
+                if span <= 0:
+                    # Dropped keyframe: thin marker, takes no output width.
+                    p.fillRect(QRectF(x, y_top, 2.0, height), DROPPED_KEY)
+                    continue
+                if x > x_offset + clip_w:
+                    break
+                seg_w = span * px_per_unit
+                if frame.is_keyframe:
+                    color = KEPT_KEY
+                    bar_h = height
                 else:
                     color = P_FRAME
                     bar_h = height * 0.45
-                    p_count += 1
-
                 fy = y_top + (height - bar_h)
-                bar_w = max(px_per_frame - 1, 1.5)
-
-                if px_per_frame >= 5:
+                bar_w = max(seg_w - 1, 1.5)
+                if px_per_unit >= 5:
                     bp = QPainterPath()
-                    bp.addRoundedRect(QRectF(fx, fy, bar_w, bar_h), 1.5, 1.5)
+                    bp.addRoundedRect(QRectF(x, fy, bar_w, bar_h), 1.5, 1.5)
                     p.fillPath(bp, color)
                 else:
-                    p.fillRect(QRectF(fx, fy, bar_w, bar_h), color)
-
-                if (
-                    not frame.is_keyframe
-                    and r.dup_count > 0
-                    and r.dup_gap > 0
-                    and p_count % r.dup_gap == 0
-                ):
-                    p.fillRect(QRectF(fx, y_top, max(bar_w, 2), 3), DUP_MARK)
+                    p.fillRect(QRectF(x, fy, bar_w, bar_h), color)
+                if is_dup:
+                    # Orange marker spanning the whole (widened) duplicated frame.
+                    p.fillRect(QRectF(x, y_top, max(bar_w, 2), 3), DUP_MARK)
+                x += seg_w
         else:
             buckets = max(1, int(clip_w / 2))
             frames_per_bucket = max(1, n / buckets)
@@ -1000,11 +1012,17 @@ class TimelineWidget(QWidget):
             source_frame_count = frame_count
             frames: list[FrameInfo] = []
             loading = not clip.is_ready()
-            drop_first = (
-                item.drop_first_keyframe_override
-                if item.drop_first_keyframe_override is not None
-                else clip.drop_first_keyframe
-            )
+            # Effective per-segment glitch settings (override if set, else the clip's),
+            # so the timeline viz/duration reflect what this segment will actually mosh.
+            def _eff(override, base):
+                return base if override is None else override
+
+            drop_first = _eff(item.drop_first_keyframe_override, clip.drop_first_keyframe)
+            eff_keep_first = _eff(item.keep_first_override, clip.keep_first)
+            eff_dup_count = _eff(item.duplicate_count_override, clip.duplicate_count)
+            eff_dup_gap = _eff(item.duplicate_gap_override, clip.duplicate_gap)
+            eff_keep_keys = _eff(item.keep_keys_spec_override, clip.keep_keys_spec)
+            eff_drop_keys = _eff(item.drop_keys_spec_override, clip.drop_keys_spec)
 
             full = self._frame_cache.get(key)
             if full is not None:
@@ -1015,19 +1033,19 @@ class TimelineWidget(QWidget):
                 source_frame_count = max(1, len(frames))
                 frame_count = self._predict_output_frame_count(
                     frames,
-                    keep_first=clip.keep_first,
+                    keep_first=eff_keep_first,
                     drop_first=drop_first,
-                    dup_count=clip.duplicate_count,
-                    dup_gap=clip.duplicate_gap,
-                    keep_keys_spec=clip.keep_keys_spec,
-                    drop_keys_spec=clip.drop_keys_spec,
+                    dup_count=eff_dup_count,
+                    dup_gap=eff_dup_gap,
+                    keep_keys_spec=eff_keep_keys,
+                    drop_keys_spec=eff_drop_keys,
                 )
                 loading = False
             else:
                 frame_count = self._estimate_output_frames_without_analysis(
                     source_frame_count,
-                    dup_count=clip.duplicate_count,
-                    dup_gap=clip.duplicate_gap,
+                    dup_count=eff_dup_count,
+                    dup_gap=eff_dup_gap,
                 )
 
             fps = clip.fps if clip.fps > 0 else 30.0
@@ -1040,9 +1058,9 @@ class TimelineWidget(QWidget):
                 frames=frames,
                 frame_count=frame_count,
                 source_frame_count=source_frame_count,
-                keep_first=clip.keep_first,
-                dup_count=clip.duplicate_count,
-                dup_gap=clip.duplicate_gap,
+                keep_first=eff_keep_first,
+                dup_count=eff_dup_count,
+                dup_gap=eff_dup_gap,
                 drop_first=drop_first,
                 fps=fps,
                 duration_sec=max(0.01, duration),
