@@ -145,9 +145,18 @@ class TimelineCanvas(QWidget):
         self._pps: float = 100.0
         self._scroll_sec: float = 0.0
 
-        self._font = QFont("Sans", 9)
-        self._font_small = QFont("Sans", 7)
-        self._font_bold = QFont("Sans", 9, QFont.Weight.Bold)
+        # "Sans" is not a real family on Windows/macOS and triggers font
+        # substitution; build from the platform default with a sans-serif hint.
+        self._font = QFont()
+        self._font.setPointSize(9)
+        self._font.setStyleHint(QFont.StyleHint.SansSerif)
+        self._font_small = QFont()
+        self._font_small.setPointSize(7)
+        self._font_small.setStyleHint(QFont.StyleHint.SansSerif)
+        self._font_bold = QFont()
+        self._font_bold.setPointSize(9)
+        self._font_bold.setBold(True)
+        self._font_bold.setStyleHint(QFont.StyleHint.SansSerif)
 
     # -- Public API --------------------------------------------------------
 

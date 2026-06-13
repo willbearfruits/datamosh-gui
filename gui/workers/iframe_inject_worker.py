@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import tempfile
 from pathlib import Path
 import subprocess
@@ -33,6 +34,7 @@ class IFrameInjectWorker(QThread):
         self._qscale = max(1, int(qscale))
 
     def run(self) -> None:
+        tmp_dir: Path | None = None
         try:
             tmp_dir = Path(tempfile.mkdtemp(prefix="datamosh-inject-"))
             out_path = tmp_dir / f"{self._source.stem}_inject_iframe.avi"
@@ -84,4 +86,7 @@ class IFrameInjectWorker(QThread):
                 raise RuntimeError(details or "ffmpeg failed to build inject clip")
             self.finished_ok.emit(str(out_path), float(self._fps))
         except Exception as exc:
+            # Don't leak the temp dir in %TEMP%/tmp when the build fails.
+            if tmp_dir is not None:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
             self.error.emit(str(exc))

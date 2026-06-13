@@ -6,6 +6,7 @@ import sys
 from PySide6.QtCore import QLibraryInfo
 from PySide6.QtWidgets import QApplication
 
+from gui.ffmpeg_env import suppress_subprocess_console
 from gui.theme import STYLESHEET, make_dark_palette
 from gui.version import get_version
 
@@ -29,6 +30,7 @@ def create_app(argv: list[str] | None = None) -> QApplication:
     if argv is None:
         argv = sys.argv
     sanitize_qt_plugin_env()
+    suppress_subprocess_console()  # no ffmpeg/ffprobe console flashes on Windows
     app = QApplication(argv)
     app.setApplicationName("Datamosh")
     app.setApplicationVersion(get_version())

@@ -158,6 +158,36 @@ class VideoInfoWorker(QThread):
             print("[warn] ffprobe not found on PATH", flush=True)
 
 
+class CodecProbeWorker(QThread):
+    """Probe a video's codec name off the UI thread for the direct-import check."""
+
+    done = Signal(int, str)  # row, codec_name ("" on failure)
+
+    def __init__(self, path: Path, row: int, parent=None) -> None:
+        super().__init__(parent)
+        self._path = path
+        self._row = row
+
+    def run(self) -> None:
+        codec = ""
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe", "-v", "quiet",
+                    "-select_streams", "v:0",
+                    "-show_entries", "stream=codec_name",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    str(self._path),
+                ],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                codec = (result.stdout.strip().splitlines() or [""])[0].strip().lower()
+        except Exception:
+            codec = ""
+        self.done.emit(self._row, codec)
+
+
 def _extract_thumbnail(path: Path) -> Optional[QPixmap]:
     """Try to grab a frame via ffmpeg, return scaled QPixmap or None."""
     try:
@@ -287,20 +317,43 @@ class ClipPanel(QWidget):
         if not clip:
             return
 
-        if self._should_use_source_directly(clip.source_path, settings):
+        # Only "prefer source" mode can skip normalization, and only for AVI input.
+        # Probe the codec on a worker thread (this used to block the UI thread for
+        # up to 5s) and decide direct-vs-normalize once the result arrives.
+        if (
+            settings.get("mode") == IMPORT_MODE_PREFER_SOURCE
+            and clip.source_path.suffix.lower() == ".avi"
+        ):
+            clip.normalizing = True
+            self._project.clip_model.update_clip(row)
+            self._start_codec_probe(row, clip.source_path, settings)
+            return
+
+        self._start_normalize(row, settings)
+
+    def _start_codec_probe(self, row: int, path: Path, settings: dict[str, Any]) -> None:
+        worker = CodecProbeWorker(path, row, self)
+        worker.done.connect(lambda r, codec: self._on_codec_probed(r, codec, settings))
+        worker.finished.connect(worker.deleteLater)
+        self._track_worker(worker)
+        worker.start()
+
+    def _on_codec_probed(self, row: int, codec: str, settings: dict[str, Any]) -> None:
+        clip = self._project.clip_model.clip_at(row)
+        if not clip:
+            return
+        if codec in DIRECT_IMPORT_CODECS:
             clip.normalized_path = clip.source_path
             clip.normalizing = False
             self._project.clip_model.update_clip(row)
             self._project.clips_changed.emit()
             self._project.status_message.emit(f"Clip {row + 1} ready (source AVI)")
             self._start_video_info(row, clip.source_path)
-            return
-
-        if settings.get("mode") == IMPORT_MODE_PREFER_SOURCE:
+        else:
             self._project.status_message.emit(
                 f"Clip {row + 1}: source not compatible for direct import, normalizing..."
             )
-        self._start_normalize(row, settings)
+            self._start_normalize(row, settings)
 
     def _start_normalize(self, row: int, settings: dict[str, Any]) -> None:
         clip = self._project.clip_model.clip_at(row)
@@ -394,31 +447,6 @@ class ClipPanel(QWidget):
             else:
                 self._settings.setValue(f"{SETTINGS_PREFIX}{key}", value)
         self._settings.sync()
-
-    @staticmethod
-    def _should_use_source_directly(path: Path, settings: dict[str, Any]) -> bool:
-        if settings.get("mode") != IMPORT_MODE_PREFER_SOURCE:
-            return False
-        if path.suffix.lower() != ".avi":
-            return False
-
-        try:
-            result = subprocess.run(
-                [
-                    "ffprobe", "-v", "quiet",
-                    "-select_streams", "v:0",
-                    "-show_entries", "stream=codec_name",
-                    "-of", "default=noprint_wrappers=1:nokey=1",
-                    str(path),
-                ],
-                capture_output=True, text=True, timeout=5,
-            )
-            if result.returncode != 0:
-                return False
-            codec = (result.stdout.strip().splitlines() or [""])[0].strip().lower()
-            return codec in DIRECT_IMPORT_CODECS
-        except Exception:
-            return False
 
     def _track_worker(self, worker: QThread) -> None:
         self._workers.append(worker)

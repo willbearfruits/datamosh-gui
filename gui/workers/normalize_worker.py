@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -41,6 +42,7 @@ class NormalizeWorker(QThread):
         self._keep_audio = keep_audio
 
     def run(self) -> None:
+        tmp_dir: Path | None = None
         try:
             self.progress.emit(self._row, 0)
 
@@ -70,4 +72,7 @@ class NormalizeWorker(QThread):
             self.finished_ok.emit(self._row, str(out_path))
 
         except Exception as exc:
+            # Don't leak the temp dir in %TEMP%/tmp when normalization fails.
+            if tmp_dir is not None:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
             self.error.emit(self._row, str(exc))

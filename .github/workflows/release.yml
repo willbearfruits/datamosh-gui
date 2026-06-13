@@ -79,6 +79,22 @@ jobs:
           Set-Content -Path VERSION -Value $version -NoNewline
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Download FFmpeg for bundling
+        shell: pwsh
+        run: |
+          # Ship ffmpeg/ffprobe inside the Windows build so the app works on
+          # machines without ffmpeg on PATH (gui/ffmpeg_env.ensure_ffmpeg_on_path
+          # prepends the bundled "ffmpeg" dir at startup). GPL build is fine for a
+          # GPL-3.0 project. Pin to a specific release for reproducible builds.
+          $url = "https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-essentials_build.zip"
+          Invoke-WebRequest -Uri $url -OutFile ffmpeg.zip
+          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg-zip -Force
+          New-Item -ItemType Directory -Force -Path ffmpeg-bin | Out-Null
+          $ff = Get-ChildItem -Path ffmpeg-zip -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          $fp = Get-ChildItem -Path ffmpeg-zip -Recurse -Filter ffprobe.exe | Select-Object -First 1
+          Copy-Item $ff.FullName ffmpeg-bin/ffmpeg.exe
+          Copy-Item $fp.FullName ffmpeg-bin/ffprobe.exe
+
       - name: Build app
         shell: pwsh
         run: |
@@ -86,6 +102,8 @@ jobs:
             --add-data "README.md;." `
             --add-data "LICENSE;." `
             --add-data "VERSION;." `
+            --add-binary "ffmpeg-bin/ffmpeg.exe;ffmpeg" `
+            --add-binary "ffmpeg-bin/ffprobe.exe;ffmpeg" `
             main.py
 
       - name: Install Inno Setup
