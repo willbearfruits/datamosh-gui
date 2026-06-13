@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import struct
 from pathlib import Path
 from typing import Dict, Optional, Set
 
@@ -118,6 +119,16 @@ class MoshWorker(QThread):
                 )
             self.finished_ok.emit(str(self._output))
 
+        except struct.error:
+            # mosh.py packs the movi/RIFF sizes as unsigned 32-bit; a very large
+            # mosh (high duplicate count or long clips) overflows that and raises a
+            # cryptic struct.error ("'I' format requires 0 <= number <= ..."). The
+            # engine is treated as untouched, so translate it here into something
+            # actionable instead of leaking the raw message to the render dialog.
+            self.error.emit(
+                "Output is too large for the AVI format (~4 GB limit). Reduce the "
+                "duplicate count, increase the duplicate gap, or shorten the clips."
+            )
         except Exception as exc:
             self.error.emit(str(exc))
 

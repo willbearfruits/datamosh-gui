@@ -95,7 +95,8 @@ class ClipRegion:
     clip_row: int
     label: str
     frames: list[FrameInfo] = field(default_factory=list)
-    frame_count: int = 1
+    frame_count: int = 1            # predicted OUTPUT frame count (after moshing)
+    source_frame_count: int = 1     # trimmed SOURCE frame count (before moshing)
     keep_first: int = 0
     dup_count: int = 0
     dup_gap: int = 1
@@ -232,11 +233,16 @@ class TimelineCanvas(QWidget):
             right = t_offset + region.duration_sec
             if self._playhead_sec < right or idx == len(self._regions) - 1:
                 local_sec = max(0.0, min(self._playhead_sec - t_offset, region.duration_sec))
-                if region.fps > 0:
-                    local_frame = int(local_sec * region.fps)
-                else:
-                    local_frame = int((local_sec / max(region.duration_sec, 1e-6)) * region.frame_count)
-                local_frame = max(0, min(local_frame, max(0, region.frame_count - 1)))
+                # Map the playhead to a SOURCE frame. duration_sec reflects the
+                # predicted OUTPUT length, so deriving a frame from fps/output count
+                # gives an OUTPUT index — but cuts and inserts operate on SOURCE
+                # frames (project.split_timeline_item). With duplication active the
+                # output count is inflated, so an output index would clamp a midpoint
+                # cut to the end of the source. Use the time fraction × source count.
+                src_n = max(1, region.source_frame_count)
+                frac = local_sec / region.duration_sec if region.duration_sec > 0 else 0.0
+                local_frame = int(frac * src_n)
+                local_frame = max(0, min(local_frame, src_n - 1))
                 return region.timeline_index, local_frame
             t_offset = right
 
@@ -1007,6 +1013,7 @@ class TimelineWidget(QWidget):
                 label=clip.label(),
                 frames=frames,
                 frame_count=frame_count,
+                source_frame_count=source_frame_count,
                 keep_first=clip.keep_first,
                 dup_count=clip.duplicate_count,
                 dup_gap=clip.duplicate_gap,

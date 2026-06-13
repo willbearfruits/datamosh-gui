@@ -128,3 +128,28 @@ def test_mosh_worker_exception(qtbot, temp_dir):
             worker.start()
 
         assert "boom" in errors[0]
+
+
+def test_mosh_worker_size_overflow_message(qtbot, temp_dir):
+    """A struct.error from the 32-bit AVI size fields becomes an actionable message."""
+    import struct as _struct
+
+    clip = ClipProfile(
+        source_path=Path("/tmp/a.mp4"),
+        normalized_path=temp_dir / "norm.avi",
+    )
+    out = temp_dir / "out.avi"
+    overflow = _struct.error("'I' format requires 0 <= number <= 4294967295")
+
+    with patch.object(mosh, "rewrite_avi", side_effect=overflow):
+        worker = MoshWorker([clip], out)
+        errors = []
+        worker.error.connect(errors.append)
+
+        with qtbot.waitSignal(worker.error, timeout=5000):
+            worker.start()
+
+        assert errors
+        assert "4 GB" in errors[0] or "too large" in errors[0]
+        # The cryptic raw struct message must not leak to the user.
+        assert "format requires" not in errors[0]
