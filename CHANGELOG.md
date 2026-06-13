@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-13
+
+### Added
+- Save/open projects as `.dmosh` files (clip sources, per-clip settings, timeline, selection).
+- Per-segment glitch settings: each timeline segment can override the clip's keep/duplicate/keyframe settings.
+- Export to MP4/MOV (H.264) in addition to native AVI, via an ffmpeg transcode of the moshed output.
+
+### Fixed
+- Cut/inject at playhead now maps to a *source* frame (was misplaced when duplicates were active); the playhead snaps to frames.
+- Audio survives moshing/export — normalization re-encodes to MP3 (AVI can't carry AAC/Opus via stream-copy).
+- macOS: tooltips show native shortcuts (⌘) and the timeline delete also binds Backspace.
+- Windows: no console-window flashes; bundled-ffmpeg detection with a clear startup message.
+- Live preview no longer mixes stale frames; cooperative cancellation (no unsafe `terminate()`).
+- Core engine: tolerant idx1 parsing (absolute offsets / missing index), clearer keep/drop precedence, real ffmpeg error messages, and a clear >4 GB output guard.
+
+### Engineering
+- CI now runs the pytest suite on push/PR (ubuntu + windows); repaired the broken download-portal links.
+
 ## [1.1.5] - 2026-02-28
 
 ### Fixed

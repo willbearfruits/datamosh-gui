@@ -2,7 +2,7 @@
 
 Interactive timeline-based datamoshing for clip-level I-frame and P-frame manipulation.
 
-Current version: `v1.1.5`.
+Current version: `v1.2.0`.
 
 ## Support
 
@@ -22,6 +22,15 @@ Sample output video:
 [Download example clip (AVI)](assets/showcase/example-1.avi)
 
 ## Changelog
+
+### v1.2.0
+- **New:** Save/open `.dmosh` projects (clips, per-clip settings, timeline)
+- **New:** Per-segment glitch settings — each timeline segment overrides the clip
+- **New:** Export to MP4/MOV (H.264) as well as native AVI
+- **Fix:** Cut/inject at playhead maps to the correct source frame; playhead snaps to frames
+- **Fix:** Audio is preserved (normalize re-encodes to MP3) — no more silent exports
+- **Fix:** Windows — no console flashes + ffmpeg detection; macOS — ⌘ tooltips + Backspace delete
+- **Fix:** Live-preview stale-frame mixing; core-engine idx1 tolerance + clearer errors
 
 ### v1.1.5
 - **Fix:** Temp directories from normalization and I-frame injection are now cleaned up when a clip is removed, preventing `/tmp` accumulation over long sessions

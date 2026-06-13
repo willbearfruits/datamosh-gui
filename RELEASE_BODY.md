@@ -12,7 +12,8 @@ Website:
 
 ## Release Notes
 
-- This is the current public cross-platform release build.
+- **v1.2.0** — save/open `.dmosh` projects, per-segment glitch settings, MP4/MOV export,
+  audio preserved through moshing, plus Windows/macOS polish and core-engine fixes.
 - Includes Linux, macOS, and Windows portable + installer artifacts when platform jobs succeed.
 
 ## Available Assets
