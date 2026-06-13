@@ -6,7 +6,11 @@ on:
       - main
     paths:
       - docs/**
+      - VERSION
       - .github/workflows/pages.yml
+  release:
+    types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,6 +27,7 @@ jobs:
           VERSION="$(cat VERSION)"
           sed -i -E "s/Datamosh-[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?-(linux|windows|macos)/Datamosh-${VERSION}-\2/g" docs/index.html
           sed -i -E "s#// download v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?#// download v${VERSION}#g" docs/index.html
+          sed -i -E "s#(<div class=\"hero-label\">v)[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?#\1${VERSION}#g" docs/index.html
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4

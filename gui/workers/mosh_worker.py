@@ -119,16 +119,22 @@ class MoshWorker(QThread):
                 )
             self.finished_ok.emit(str(self._output))
 
-        except struct.error:
+        except struct.error as exc:
             # mosh.py packs the movi/RIFF sizes as unsigned 32-bit; a very large
             # mosh (high duplicate count or long clips) overflows that and raises a
             # cryptic struct.error ("'I' format requires 0 <= number <= ..."). The
-            # engine is treated as untouched, so translate it here into something
-            # actionable instead of leaking the raw message to the render dialog.
-            self.error.emit(
-                "Output is too large for the AVI format (~4 GB limit). Reduce the "
-                "duplicate count, increase the duplicate gap, or shorten the clips."
-            )
+            # engine is treated as untouched, so translate that case here. A
+            # struct.error can also come from parsing a truncated/corrupt AVI
+            # (unpack_from), so only the integer-overflow signature maps to the
+            # size-limit message; anything else is reported as-is.
+            msg = str(exc).lower()
+            if "format requires" in msg or "argument out of range" in msg or "requires 0 <=" in msg:
+                self.error.emit(
+                    "Output is too large for the AVI format (~4 GB limit). Reduce the "
+                    "duplicate count, increase the duplicate gap, or shorten the clips."
+                )
+            else:
+                self.error.emit(f"Failed to read or write video data: {exc}")
         except Exception as exc:
             self.error.emit(str(exc))
 

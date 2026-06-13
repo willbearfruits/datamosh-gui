@@ -132,7 +132,7 @@ class Project(QObject):
         # Defer temp-dir cleanup: the just-recorded undo snapshot still holds this
         # clip (with its normalized_path), so deleting its temp dir now would make a
         # later undo restore a clip whose media file is gone. Reap once unreachable.
-        if clip.temp_dir is not None and clip not in self._pending_temp_cleanup:
+        if clip.temp_dir is not None and not any(c is clip for c in self._pending_temp_cleanup):
             self._pending_temp_cleanup.append(clip)
         self.clip_model.remove_clip(row)
         self.clips_changed.emit()
@@ -146,11 +146,24 @@ class Project(QObject):
                 kept.append(item)
         if removed:
             old_sel = self._selected_timeline_index
+            selected_item = (
+                self._timeline[old_sel] if 0 <= old_sel < len(self._timeline) else None
+            )
             self._timeline = kept
             if not self._timeline:
                 self._selected_timeline_index = -1
-            elif old_sel >= len(self._timeline):
-                self._selected_timeline_index = len(self._timeline) - 1
+            else:
+                # Follow the still-present selected segment to its new index (it may
+                # have shifted down if an earlier segment was removed); otherwise the
+                # selected segment was one of the removed ones, so clamp into range.
+                new_idx = next(
+                    (i for i, it in enumerate(self._timeline) if it is selected_item),
+                    -1,
+                )
+                if new_idx >= 0:
+                    self._selected_timeline_index = new_idx
+                elif old_sel >= len(self._timeline):
+                    self._selected_timeline_index = len(self._timeline) - 1
             self.timeline_changed.emit()
             self.timeline_item_selected.emit(self._selected_timeline_index)
 

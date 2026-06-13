@@ -65,6 +65,22 @@ def test_remove_clip_before_selection_keeps_identity_and_resyncs(project):
     assert seen and seen[-1] == 1            # settings panel rebinds to the new row
 
 
+def test_remove_midtimeline_clip_follows_selected_segment(project):
+    # timeline [a, x, b, c] with the b segment selected; removing the x segment
+    # (before it) must follow b to its new index, not leave selection pointing at c.
+    a, x, b, c = _clips("a", "x", "b", "c")
+    for clip in (a, x, b, c):
+        project.add_clip(clip)  # add_to_timeline=True
+    project.select_timeline_item(2)
+    assert project.timeline_items[2].clip is b
+
+    project.remove_clip(project.row_for_clip(x))
+
+    assert len(project.timeline_items) == 3
+    assert project.selected_timeline_index == 1
+    assert project.timeline_items[project.selected_timeline_index].clip is b
+
+
 def test_remove_last_clip_clears_selection(project):
     (a,) = _clips("a")
     project.add_clip(a, add_to_timeline=False)
