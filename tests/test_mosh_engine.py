@@ -129,6 +129,18 @@ def test_explicit_drop_beats_explicit_keep():
     assert len(out) == 0  # explicit drop wins over explicit keep
 
 
+def test_process_chunks_aborts_cooperatively():
+    chunks = [_kf() for _ in range(10)]
+    with pytest.raises(mosh.MoshAborted):
+        mosh.process_chunks(chunks, 5, 0, 1, should_abort=lambda: True)
+
+
+def test_process_chunks_runs_when_abort_false():
+    chunks = [_kf(), _kf()]
+    out = mosh.process_chunks(chunks, 5, 0, 1, should_abort=lambda: False)
+    assert len(out) == 2
+
+
 def test_default_drop_first_unchanged_without_explicit_sets():
     chunks = [_kf(), _kf()]
     opts = {0: mosh.ClipOptions(

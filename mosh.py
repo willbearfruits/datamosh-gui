@@ -16,11 +16,15 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, List, Optional, Sequence, Set
+from typing import Callable, Dict, List, Optional, Sequence, Set
 
 
 class AviParseError(Exception):
     """Raised when the source AVI does not match expectations."""
+
+
+class MoshAborted(Exception):
+    """Raised cooperatively when a caller's should_abort() callback returns True."""
 
 
 @dataclass
@@ -355,6 +359,7 @@ def process_chunks(
     drop_key_indices: Optional[Set[int]] = None,
     clip_options: Optional[Dict[int, ClipOptions]] = None,
     drop_appended_first: bool = True,
+    should_abort: Optional[Callable[[], bool]] = None,
 ) -> List[AviChunk]:
     if duplicate_count < 0:
         raise ValueError("duplicate_count must be >= 0")
@@ -368,6 +373,8 @@ def process_chunks(
     per_clip_p_counter = defaultdict(int)
 
     for chunk in chunks:
+        if should_abort is not None and should_abort():
+            raise MoshAborted()
         if not chunk.is_video:
             processed.append(chunk.clone())
             continue
@@ -470,6 +477,11 @@ def build_movi_and_index(
         + b"movi"
         + bytes(movi_payload)
     )
+    if len(idx_payload) > 0xFFFFFFFF:
+        raise AviParseError(
+            "Output index exceeds the 4 GB AVI size limit. Reduce the duplicate "
+            "count, increase the duplicate gap, or shorten the clips."
+        )
     idx_chunk = b"idx1" + struct.pack("<I", len(idx_payload)) + bytes(idx_payload)
     return movi_chunk, idx_chunk, video_frames
 
@@ -581,6 +593,7 @@ def rewrite_avi(
     drop_key_indices: Optional[Set[int]] = None,
     clip_options: Optional[Dict[int, ClipOptions]] = None,
     drop_appended_first: bool = True,
+    should_abort: Optional[Callable[[], bool]] = None,
 ) -> None:
     base = parse_avi_file(source_path, clip_id=0)
 
@@ -598,6 +611,7 @@ def rewrite_avi(
         drop_key_indices=drop_key_indices,
         clip_options=clip_options,
         drop_appended_first=drop_appended_first,
+        should_abort=should_abort,
     )
     movi_chunk, idx_chunk, video_frames = build_movi_and_index(processed_chunks)
 

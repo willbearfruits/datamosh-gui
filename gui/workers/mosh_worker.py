@@ -83,6 +83,11 @@ class MoshWorker(QThread):
         super().__init__(parent)
         self._clips = clips
         self._output = output_path
+        self._abort = False
+
+    def abort(self) -> None:
+        """Request cooperative cancellation; rewrite stops at the next chunk check."""
+        self._abort = True
 
     def run(self) -> None:
         try:
@@ -116,9 +121,14 @@ class MoshWorker(QThread):
                     drop_key_indices=None,
                     clip_options=clip_opts,
                     drop_appended_first=False,
+                    should_abort=lambda: self._abort,
                 )
+            if self._abort:
+                return
             self.finished_ok.emit(str(self._output))
 
+        except mosh.MoshAborted:
+            return  # superseded/cancelled — emit nothing
         except struct.error as exc:
             # mosh.py packs the movi/RIFF sizes as unsigned 32-bit; a very large
             # mosh (high duplicate count or long clips) overflows that and raises a
@@ -185,6 +195,7 @@ class MoshWorker(QThread):
             drop_key_indices=None,
             clip_options=clip_opts,
             drop_appended_first=False,
+            should_abort=lambda: self._abort,
         )
         movi_chunk, idx_chunk, video_frames = mosh.build_movi_and_index(processed)
 

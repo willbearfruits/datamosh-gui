@@ -103,6 +103,8 @@ class PreviewWidget(QWidget):
         self._scrubber = QSlider(Qt.Orientation.Horizontal)
         self._scrubber.setRange(0, 0)
         self._scrubber.valueChanged.connect(self._on_scrub)
+        # Re-apply the range/label once a drag ends (updates are skipped mid-drag).
+        self._scrubber.sliderReleased.connect(self._update_scrub_range)
         controls.addWidget(self._scrubber, 1)
 
         self._frame_label = QLabel("0/0")
@@ -269,14 +271,16 @@ class PreviewWidget(QWidget):
 
     def _cancel_workers(self) -> None:
         # Bump the generation so any outstanding worker callbacks become no-ops,
-        # then cooperatively stop the extractor (it polls _abort) and detach the
-        # mosh worker. Nothing is terminate()'d: a detached worker safely finishes
-        # into its own per-generation temp file and self-retires via `finished`.
+        # then cooperatively abort both the extractor and the mosh worker (both poll
+        # an _abort flag and stop quickly). Nothing is terminate()'d here: a detached
+        # worker stops at its next checkpoint and self-retires via `finished`.
         self._generation += 1
         if self._extractor is not None:
             self._extractor.abort()
             self._extractor = None
-        self._mosh_worker = None
+        if self._mosh_worker is not None:
+            self._mosh_worker.abort()
+            self._mosh_worker = None
 
     def _retire_worker(self, worker) -> None:
         self._inflight.discard(worker)
@@ -301,10 +305,17 @@ class PreviewWidget(QWidget):
         self._frame_label.setText(f"{self._current_frame + 1}/{len(self._frames)}")
 
     def reset(self) -> None:
-        """Cancel in-flight work and clear the display (project new/load)."""
+        """Cancel in-flight work and clear the display (project new/load).
+
+        Waits for the aborted workers to actually finish so the caller can safely
+        reclaim clip temp dirs (no rmtree-while-reading race).
+        """
         self._debounce.stop()
         self._stop_playback()
         self._cancel_workers()
+        for worker in list(self._inflight):
+            if worker.isRunning():
+                worker.wait(2000)
         self._frames = []
         self._current_frame = 0
         self._last_mosh_id = None
@@ -321,11 +332,14 @@ class PreviewWidget(QWidget):
         self._debounce.stop()
         self._stop_playback()
         self._cancel_workers()
-        # Wait for any detached workers to finish so no QThread is destroyed while
-        # still running (no terminate() — they exit on their own shortly).
+        # Wait for aborted workers to finish so no QThread is destroyed while still
+        # running. As a last resort at process exit only, terminate a worker that
+        # won't stop (e.g. stuck in a large write) — acceptable since we rmtree the
+        # temp dir immediately after.
         for worker in list(self._inflight):
-            if worker.isRunning():
-                worker.wait(3000)
+            if worker.isRunning() and not worker.wait(3000):
+                worker.terminate()
+                worker.wait(500)
         self._inflight.clear()
         shutil.rmtree(self._temp_dir, ignore_errors=True)
 

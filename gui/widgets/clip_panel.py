@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Optional
@@ -228,6 +229,7 @@ class ClipPanel(QWidget):
         self._project = project
         self._workers: list[QThread] = []
         self._settings = QSettings()
+        self._ingest_epoch = 0  # bumped on New/Open to invalidate stale ingest callbacks
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -288,6 +290,21 @@ class ClipPanel(QWidget):
         """The persisted import settings (used when saving a project)."""
         return self._load_import_settings()
 
+    def cancel_ingest(self) -> None:
+        """Invalidate outstanding ingest callbacks before a New/Open.
+
+        Workers keep running but their completion handlers become no-ops, so a late
+        normalize/probe can't write media onto a freshly-loaded clip sharing the same
+        row; any temp output they produce is reaped as an orphan.
+        """
+        self._ingest_epoch += 1
+
+    def _discard_orphan(self, path: str) -> None:
+        try:
+            shutil.rmtree(Path(path).parent, ignore_errors=True)
+        except OSError:
+            pass
+
     def reingest_loaded_clip(self, row: int, settings: dict[str, Any]) -> None:
         """Re-ingest a clip recreated from a loaded project so it becomes ready.
 
@@ -318,10 +335,14 @@ class ClipPanel(QWidget):
             fps=clip.fps,
             parent=self,
         )
+        ep = self._ingest_epoch
         worker.finished_ok.connect(
-            lambda out_path, out_fps, r=row: self._on_iframe_reingested(r, out_path, out_fps)
+            lambda out_path, out_fps, r=row, ep=ep: self._on_iframe_reingested(r, out_path, out_fps)
+            if ep == self._ingest_epoch else self._discard_orphan(out_path)
         )
-        worker.error.connect(lambda msg, r=row: self._on_reingest_error(r, msg))
+        worker.error.connect(
+            lambda msg, r=row, ep=ep: ep == self._ingest_epoch and self._on_reingest_error(r, msg)
+        )
         worker.finished.connect(worker.deleteLater)
         self._track_worker(worker)
         worker.start()
@@ -367,7 +388,10 @@ class ClipPanel(QWidget):
 
     def _start_thumbnail(self, path: Path, row: int) -> None:
         worker = ThumbnailExtractor(path, row, self)
-        worker.done.connect(self._on_thumbnail_ready)
+        ep = self._ingest_epoch
+        worker.done.connect(
+            lambda r, pix, ep=ep: ep == self._ingest_epoch and self._on_thumbnail_ready(r, pix)
+        )
         worker.finished.connect(worker.deleteLater)
         self._track_worker(worker)
         worker.start()
@@ -399,7 +423,10 @@ class ClipPanel(QWidget):
 
     def _start_codec_probe(self, row: int, path: Path, settings: dict[str, Any]) -> None:
         worker = CodecProbeWorker(path, row, self)
-        worker.done.connect(lambda r, codec: self._on_codec_probed(r, codec, settings))
+        ep = self._ingest_epoch
+        worker.done.connect(
+            lambda r, codec, ep=ep: ep == self._ingest_epoch and self._on_codec_probed(r, codec, settings)
+        )
         worker.finished.connect(worker.deleteLater)
         self._track_worker(worker)
         worker.start()
@@ -437,9 +464,15 @@ class ClipPanel(QWidget):
             gop=cfg["gop"],
             keep_audio=cfg["keep_audio"],
         )
+        ep = self._ingest_epoch
         worker.progress.connect(self._on_normalize_progress)
-        worker.finished_ok.connect(self._on_normalize_done)
-        worker.error.connect(self._on_normalize_error)
+        worker.finished_ok.connect(
+            lambda r, path, ep=ep: self._on_normalize_done(r, path)
+            if ep == self._ingest_epoch else self._discard_orphan(path)
+        )
+        worker.error.connect(
+            lambda r, msg, ep=ep: ep == self._ingest_epoch and self._on_normalize_error(r, msg)
+        )
         worker.finished.connect(worker.deleteLater)
         clip.normalizing = True
         self._project.clip_model.update_clip(row)
@@ -470,7 +503,11 @@ class ClipPanel(QWidget):
 
     def _start_video_info(self, row: int, path: Path) -> None:
         worker = VideoInfoWorker(path, row, self)
-        worker.done.connect(self._on_video_info_ready)
+        ep = self._ingest_epoch
+        worker.done.connect(
+            lambda r, tf, fps, w, h, ep=ep: ep == self._ingest_epoch
+            and self._on_video_info_ready(r, tf, fps, w, h)
+        )
         worker.finished.connect(worker.deleteLater)
         self._track_worker(worker)
         worker.start()

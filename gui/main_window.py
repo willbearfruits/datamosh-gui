@@ -291,6 +291,7 @@ class MainWindow(QMainWindow):
             return
         self._loading = True
         try:
+            self.clip_panel.cancel_ingest()
             self.preview_widget.reset()
             self.project.clear()
         finally:
@@ -319,6 +320,7 @@ class MainWindow(QMainWindow):
 
         self._loading = True
         try:
+            self.clip_panel.cancel_ingest()
             self.preview_widget.reset()
             settings = data.get("import_settings") or self.clip_panel.current_import_settings()
             clips = self.project.install_loaded_state(data)

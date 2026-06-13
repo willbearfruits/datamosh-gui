@@ -103,6 +103,28 @@ def test_clear_empties_project(project):
     assert not project.can_undo()
 
 
+def test_open_over_session_reclaims_old_temp_dirs(project, tmp_path):
+    tdir = tmp_path / "datamosh-norm-old"
+    tdir.mkdir()
+    (tdir / "n.avi").write_bytes(b"x")
+    old = ClipProfile(source_path=Path("/tmp/old.mp4"))
+    old.normalized_path = tdir / "n.avi"
+    old.temp_dir = tdir
+    project.add_clip(old, record_undo=False, add_to_timeline=False)
+    assert tdir.exists()
+
+    data = {
+        "format": project_io.PROJECT_FORMAT, "version": 1,
+        "clips": [{"kind": "clip", "source_path": "/tmp/new.mp4"}],
+        "timeline": [], "selected_row": -1, "selected_timeline_index": -1,
+    }
+    project.install_loaded_state(data)
+
+    assert not tdir.exists()  # outgoing session's temp dir reclaimed on load
+    assert len(project.clips) == 1
+    assert str(project.clips[0].source_path).endswith("new.mp4")
+
+
 def test_read_rejects_non_project(tmp_path):
     p = tmp_path / "x.dmosh"
     p.write_text('{"hello": 1}', encoding="utf-8")

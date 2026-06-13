@@ -577,6 +577,9 @@ class Project(QObject):
         Returns the freshly-created ClipProfile objects (not yet normalized) so the
         caller can re-ingest each one. History is reset — a load is a clean slate.
         """
+        # Reclaim the outgoing session's temp dirs before its clips are discarded
+        # (clear() does this for File>New; do the same on the File>Open path).
+        self.cleanup_all()
         clips: list[ClipProfile] = []
         for spec in data.get("clips", []):
             if not isinstance(spec, dict) or "source_path" not in spec:
