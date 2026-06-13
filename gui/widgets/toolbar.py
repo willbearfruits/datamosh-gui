@@ -5,6 +5,13 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QStyle, QToolBar
 
 
+def _tip(text: str, action: QAction) -> str:
+    """Append the action's shortcut in platform-native form (e.g. ⌘O on macOS,
+    Ctrl+O on Windows/Linux) so tooltips never show the wrong modifier."""
+    seq = action.shortcut().toString(QKeySequence.SequenceFormat.NativeText)
+    return f"{text}  ({seq})" if seq else text
+
+
 class Toolbar(QToolBar):
     open_clicked = Signal()
     add_clip_clicked = Signal()
@@ -24,13 +31,13 @@ class Toolbar(QToolBar):
 
         self._open = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton), "Open", self)
         self._open.setShortcut(QKeySequence("Ctrl+O"))
-        self._open.setToolTip("Open video file(s)  (Ctrl+O)")
+        self._open.setToolTip(_tip("Open video file(s)", self._open))
         self._open.triggered.connect(self.open_clicked)
         self.addAction(self._open)
 
         self._add = QAction(style.standardIcon(QStyle.StandardPixmap.SP_FileIcon), "Add Clip", self)
         self._add.setShortcut(QKeySequence("Ctrl+Shift+O"))
-        self._add.setToolTip("Add another clip  (Ctrl+Shift+O)")
+        self._add.setToolTip(_tip("Add another clip", self._add))
         self._add.triggered.connect(self.add_clip_clicked)
         self.addAction(self._add)
 
@@ -38,7 +45,7 @@ class Toolbar(QToolBar):
 
         self._render = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton), "Render", self)
         self._render.setShortcut(QKeySequence("Ctrl+R"))
-        self._render.setToolTip("Render moshed output  (Ctrl+R)")
+        self._render.setToolTip(_tip("Render moshed output", self._render))
         self._render.triggered.connect(self.render_clicked)
         self.addAction(self._render)
 
@@ -46,14 +53,14 @@ class Toolbar(QToolBar):
 
         self._undo = QAction(style.standardIcon(QStyle.StandardPixmap.SP_ArrowBack), "Undo", self)
         self._undo.setShortcut(QKeySequence.StandardKey.Undo)
-        self._undo.setToolTip("Undo timeline/settings change  (Ctrl+Z)")
+        self._undo.setToolTip(_tip("Undo timeline/settings change", self._undo))
         self._undo.setEnabled(False)
         self._undo.triggered.connect(self.undo_clicked)
         self.addAction(self._undo)
 
         self._redo = QAction(style.standardIcon(QStyle.StandardPixmap.SP_ArrowForward), "Redo", self)
         self._redo.setShortcut(QKeySequence.StandardKey.Redo)
-        self._redo.setToolTip("Redo timeline/settings change  (Ctrl+Shift+Z)")
+        self._redo.setToolTip(_tip("Redo timeline/settings change", self._redo))
         self._redo.setEnabled(False)
         self._redo.triggered.connect(self.redo_clicked)
         self.addAction(self._redo)
@@ -69,7 +76,7 @@ class Toolbar(QToolBar):
 
         self._help = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogHelpButton), "Help", self)
         self._help.setShortcut(QKeySequence("F1"))
-        self._help.setToolTip("Keyboard shortcuts  (F1)")
+        self._help.setToolTip(_tip("Keyboard shortcuts", self._help))
         self._help.triggered.connect(self.help_clicked)
         self.addAction(self._help)
 

@@ -60,6 +60,17 @@ def test_playhead_start_maps_to_frame_zero(canvas):
     assert local_frame == 0
 
 
+def test_playhead_snaps_to_frame(canvas):
+    region = _region(source_frames=100, output_frames=100, fps=25.0)
+    canvas._regions = [region]
+    canvas._total_duration = region.duration_sec
+    frame_dur = region.duration_sec / 100
+    raw = 10 * frame_dur + frame_dur * 0.7  # 70% into frame 10
+    snapped = canvas._snap_sec_to_frame(raw)
+    # Snaps to ~1/3 into frame 10 (clearly inside the frame, left of centre).
+    assert abs(snapped - (10 + 0.3) * frame_dur) < 1e-6
+
+
 def test_playhead_without_duplication_still_maps_correctly(canvas):
     # No duplication: output == source, midpoint should be ~half.
     region = _region(source_frames=100, output_frames=100)

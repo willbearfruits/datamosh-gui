@@ -553,7 +553,10 @@ def normalize_to_xvid(
     if scale_filter:
         cmd.extend(["-vf", scale_filter])
     if keep_audio:
-        cmd.extend(["-c:a", "copy"])
+        # The AVI container does not reliably carry AAC/Opus (the usual audio in
+        # MP4/WebM/MOV sources), so copying the stream yields silent or unplayable
+        # audio in the moshed output. Re-encode to MP3, which AVI handles cleanly.
+        cmd.extend(["-c:a", "libmp3lame", "-q:a", "4"])
     else:
         cmd.append("-an")
     cmd.append(str(dst))

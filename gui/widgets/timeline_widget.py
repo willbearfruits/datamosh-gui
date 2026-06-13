@@ -283,6 +283,29 @@ class TimelineCanvas(QWidget):
             t += r.duration_sec
         return -1, None
 
+    def _snap_sec_to_frame(self, sec: float) -> float:
+        """Snap a timeline second to ~1/3 into the frame it lands on.
+
+        Keeps the playhead clearly *inside* one frame (so it's obvious which frame is
+        shown) and left-of-centre (so it's obvious which side a cut falls on). Outside
+        any clip the value is just clamped.
+        """
+        sec = max(0.0, min(sec, self._total_duration))
+        if sec <= 0 or not self._regions:
+            return sec
+        t = 0.0
+        for r in self._regions:
+            if t <= sec < t + r.duration_sec:
+                n = max(1, r.frame_count)
+                frame_dur = r.duration_sec / n
+                if frame_dur <= 0:
+                    return sec
+                idx = int((sec - t) / frame_dur)
+                idx = max(0, min(idx, n - 1))
+                return t + (idx + 0.3) * frame_dur
+            t += r.duration_sec
+        return sec
+
     def _insert_index_for_sec(self, sec: float) -> int:
         if not self._regions:
             return 0
@@ -625,7 +648,7 @@ class TimelineCanvas(QWidget):
 
             if y < RULER_H:
                 self._dragging_playhead = True
-                self._playhead_sec = max(0.0, min(sec, self._total_duration))
+                self._playhead_sec = self._snap_sec_to_frame(sec)
                 self._emit_frame_for_sec(self._playhead_sec)
                 self.update()
                 return
@@ -634,7 +657,7 @@ class TimelineCanvas(QWidget):
                 return
 
             item_idx, region = self._clip_at_sec(sec)
-            self._playhead_sec = max(0.0, min(sec, self._total_duration))
+            self._playhead_sec = self._snap_sec_to_frame(sec)
             self._emit_frame_for_sec(self._playhead_sec)
 
             if item_idx >= 0 and region is not None:
@@ -672,7 +695,7 @@ class TimelineCanvas(QWidget):
 
         if self._dragging_playhead:
             sec = self._x_to_sec(event.position().x())
-            self._playhead_sec = max(0.0, min(sec, self._total_duration))
+            self._playhead_sec = self._snap_sec_to_frame(sec)
             self._emit_frame_for_sec(self._playhead_sec)
             self.update()
             return
@@ -908,6 +931,9 @@ class TimelineWidget(QWidget):
 
         self._delete_shortcut = QShortcut(QKeySequence("Delete"), self)
         self._delete_shortcut.activated.connect(self._delete_selected)
+        # macOS: the primary delete key is Backspace ("Delete" maps to Fn+Delete there).
+        self._backspace_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Backspace), self)
+        self._backspace_shortcut.activated.connect(self._delete_selected)
 
         self._inject_shortcut = QShortcut(QKeySequence("Ctrl+Shift+I"), self)
         self._inject_shortcut.activated.connect(self._inject_iframe_from_media)

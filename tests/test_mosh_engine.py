@@ -180,6 +180,31 @@ def test_normalize_detects_missing_libxvid(tmp_path, monkeypatch):
     assert "libxvid" in str(ei.value).lower()
 
 
+def test_normalize_reencodes_audio_to_mp3(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_run(cmd, *a, **k):
+        captured["cmd"] = cmd
+        return _Result(0)
+
+    monkeypatch.setattr(mosh.subprocess, "run", fake_run)
+    mosh.normalize_to_xvid(tmp_path / "in.mp4", tmp_path / "out.avi", keep_audio=True)
+    assert "libmp3lame" in captured["cmd"]
+    assert "copy" not in captured["cmd"]  # AAC/Opus stream-copy into AVI gives no sound
+
+
+def test_normalize_drops_audio_when_disabled(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_run(cmd, *a, **k):
+        captured["cmd"] = cmd
+        return _Result(0)
+
+    monkeypatch.setattr(mosh.subprocess, "run", fake_run)
+    mosh.normalize_to_xvid(tmp_path / "in.mp4", tmp_path / "out.avi", keep_audio=False)
+    assert "-an" in captured["cmd"]
+
+
 def test_normalize_missing_binary(tmp_path, monkeypatch):
     def boom(*a, **k):
         raise FileNotFoundError()
