@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Datamosh GUI — Timeline Glitch Editor</title>
+  <meta name="description" content="Timeline-based desktop editor for intentional codec destruction. Drop I-frames, duplicate P-frames, build glitch sequences. Free download for Linux, Windows, macOS.">
+  <meta property="og:title" content="Datamosh GUI — Timeline Glitch Editor">
+  <meta property="og:description" content="Timeline-based desktop editor for intentional codec destruction. Drop I-frames, duplicate P-frames, build glitch sequences.">
+  <meta property="og:image" content="https://willbearfruits.github.io/datamosh-gui/assets/social-preview.png">
+  <meta property="og:url" content="https://willbearfruits.github.io/datamosh-gui/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Datamosh GUI — Timeline Glitch Editor">
+  <meta name="twitter:description" content="Timeline-based desktop editor for intentional codec destruction. Drop I-frames, duplicate P-frames, build glitch sequences.">
+  <meta name="twitter:image" content="https://willbearfruits.github.io/datamosh-gui/assets/social-preview.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:      #050507;
+      --surface: #0c0c10;
+      --border:  rgba(255,255,255,0.06);
+      --red:     #ff2850;
+      --cyan:    #00e5ff;
+      --green:   #39ff14;
+      --white:   #eee;
+      --grey:    #666;
+      --dim:     #333;
+      --font-d:  'Chakra Petch', sans-serif;
+      --font-m:  'JetBrains Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--white);
+      font-family: var(--font-m);
+      font-size: 14px;
+      line-height: 1.7;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { color: var(--white); }
+    ::selection { background: var(--red); color: #000; }
+
+    /* ─── Hero ────────────────────────────────────────────────── */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+      overflow: hidden;
+    }
+
+    .hero-video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.1;
+      filter: saturate(0.2) contrast(1.3);
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 20%, var(--bg) 75%);
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      max-width: 860px;
+    }
+
+    .hero-label {
+      display: inline-block;
+      font-family: var(--font-m);
+      font-size: 0.65rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--red);
+      border: 1px solid rgba(255,40,80,0.25);
+      padding: 0.3em 1.2em;
+      margin-bottom: 2rem;
+    }
+
+    .hero-title {
+      font-family: var(--font-d);
+      font-weight: 700;
+      font-size: clamp(3.5rem, 9vw, 8rem);
+      line-height: 0.9;
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-title .red { color: var(--red); }
+
+    .hero-title .sub {
+      display: block;
+      font-weight: 300;
+      font-size: 0.3em;
+      letter-spacing: 0.15em;
+      color: var(--grey);
+      margin-top: 0.3em;
+    }
+
+    /* Glitch — only on hover, sharp & brief */
+    .glitch-hover {
+      position: relative;
+      display: inline-block;
+      cursor: default;
+    }
+    .glitch-hover::before,
+    .glitch-hover::after {
+      content: attr(data-text);
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+    }
+    .glitch-hover::before { color: var(--cyan); }
+    .glitch-hover::after  { color: var(--red); }
+
+    .glitch-hover:hover::before {
+      opacity: 1;
+      animation: g1 0.15s steps(2) 1;
+    }
+    .glitch-hover:hover::after {
+      opacity: 1;
+      animation: g2 0.15s steps(2) 1;
+    }
+
+    @keyframes g1 {
+      0%   { transform: translate(-3px, 1px); clip-path: inset(10% 0 60% 0); }
+      50%  { transform: translate(2px, -1px); clip-path: inset(40% 0 20% 0); }
+      100% { transform: translate(0); opacity: 0; }
+    }
+    @keyframes g2 {
+      0%   { transform: translate(3px, -1px); clip-path: inset(50% 0 10% 0); }
+      50%  { transform: translate(-2px, 1px); clip-path: inset(20% 0 50% 0); }
+      100% { transform: translate(0); opacity: 0; }
+    }
+
+    .hero-sub {
+      font-size: clamp(0.8rem, 1.4vw, 0.95rem);
+      color: var(--grey);
+      max-width: 500px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.9;
+    }
+    .hero-sub code {
+      color: var(--cyan);
+      background: rgba(0,229,255,0.07);
+      padding: 0.1em 0.35em;
+      font-size: 0.9em;
+    }
+
+    .cta-group {
+      display: flex;
+      gap: 0.8rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 2.5rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--font-d);
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.75em 1.8em;
+      border: 1px solid;
+      transition: all 0.15s;
+    }
+    .btn svg { width: 15px; height: 15px; fill: currentColor; }
+
+    .btn-primary {
+      color: #000;
+      background: var(--red);
+      border-color: var(--red);
+    }
+    .btn-primary:hover {
+      color: #000;
+      background: #ff4d6e;
+      border-color: #ff4d6e;
+      box-shadow: 0 0 30px rgba(255,40,80,0.25);
+    }
+
+    .btn-ghost {
+      color: var(--white);
+      background: transparent;
+      border-color: var(--dim);
+    }
+    .btn-ghost:hover {
+      color: var(--white);
+      border-color: var(--grey);
+    }
+
+    .platforms {
+      font-size: 0.6rem;
+      color: var(--dim);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+    .platforms span { color: var(--green); }
+
+    .scroll-hint {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1;
+      color: var(--dim);
+      font-size: 0.55rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+    .scroll-hint .bar {
+      display: block;
+      width: 1px;
+      height: 24px;
+      background: var(--dim);
+      margin: 0.5rem auto 0;
+    }
+
+    /* ─── Screenshot ──────────────────────────────────────────── */
+    .preview-section {
+      background: #000;
+      padding: 3rem 2rem 5rem;
+    }
+
+    .preview-frame {
+      max-width: 980px;
+      margin: 0 auto;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+    }
+
+    .preview-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0.5rem 0.8rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.6rem;
+      color: var(--dim);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .preview-bar .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+    }
+    .preview-bar .dot:nth-child(1) { background: var(--red); opacity: 0.6; }
+    .preview-bar .dot:nth-child(2) { background: #ffa940; opacity: 0.6; }
+    .preview-bar .dot:nth-child(3) { background: var(--green); opacity: 0.6; }
+
+    .preview-frame img { display: block; width: 100%; }
+
+    /* ─── Shared section styling ──────────────────────────────── */
+    section { padding: 5rem 2rem; }
+    .container { max-width: 1060px; margin: 0 auto; }
+
+    .section-tag {
+      font-family: var(--font-m);
+      font-size: 0.6rem;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--red);
+      margin-bottom: 0.6rem;
+    }
+
+    .section-title {
+      font-family: var(--font-d);
+      font-weight: 700;
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+      text-transform: uppercase;
+      line-height: 1.1;
+      margin-bottom: 3rem;
+    }
+
+    .divider {
+      border: none;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* thin red accent line between major sections */
+    .accent-line {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--red), transparent);
+      opacity: 0.3;
+    }
+
+    /* ─── Features ────────────────────────────────────────────── */
+    .features-section { background: var(--bg); }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+    }
+
+    .feature-card {
+      background: var(--bg);
+      padding: 2rem;
+      transition: background 0.15s;
+    }
+    .feature-card:hover { background: var(--surface); }
+
+    .feature-num {
+      font-family: var(--font-m);
+      font-size: 0.6rem;
+      color: var(--dim);
+      margin-bottom: 1rem;
+    }
+
+    .feature-card h3 {
+      font-family: var(--font-d);
+      font-weight: 600;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-card p {
+      font-size: 0.78rem;
+      color: var(--grey);
+      line-height: 1.8;
+    }
+
+    /* ─── How it works ────────────────────────────────────────── */
+    .how-section { background: #000; }
+
+    .steps { counter-reset: s; }
+
+    .step {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 1.5rem;
+      padding: 1.8rem 0;
+      border-bottom: 1px solid var(--border);
+      counter-increment: s;
+      align-items: baseline;
+    }
+    .step:last-child { border-bottom: none; }
+
+    .step-n {
+      font-family: var(--font-d);
+      font-weight: 700;
+      font-size: 1.8rem;
+      color: var(--dim);
+      text-align: right;
+      padding-right: 1.2rem;
+      border-right: 1px solid var(--border);
+      line-height: 1;
+    }
+    .step-n::before { content: counter(s, decimal-leading-zero); }
+
+    .step h3 {
+      font-family: var(--font-d);
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.3rem;
+    }
+    .step p {
+      font-size: 0.78rem;
+      color: var(--grey);
+      line-height: 1.8;
+    }
+    .step code {
+      color: var(--green);
+      background: rgba(57,255,20,0.05);
+      padding: 0.1em 0.35em;
+      font-size: 0.9em;
+    }
+
+    /* ─── Downloads ───────────────────────────────────────────── */
+    .download-section { background: var(--bg); }
+
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.2rem;
+    }
+
+    .dl-card {
+      border: 1px solid var(--border);
+      padding: 1.8rem;
+      transition: border-color 0.15s;
+    }
+    .dl-card:hover {
+      border-color: rgba(255,40,80,0.2);
+    }
+
+    .dl-card .os {
+      font-family: var(--font-d);
+      font-weight: 700;
+      font-size: 1.2rem;
+      text-transform: uppercase;
+      margin-bottom: 0.2rem;
+    }
+    .dl-card .arch {
+      font-size: 0.6rem;
+      color: var(--dim);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .dl-links a {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-m);
+      font-size: 0.75rem;
+      color: var(--grey);
+      padding: 0.45em 0;
+      border-bottom: 1px solid var(--border);
+      transition: color 0.12s, padding-left 0.12s;
+    }
+    .dl-links a:last-child { border-bottom: none; }
+    .dl-links a:hover { color: var(--cyan); padding-left: 0.4em; }
+
+    .dl-links .ext {
+      font-size: 0.55rem;
+      color: var(--dim);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .dl-links a:hover .ext { color: var(--cyan); }
+
+    /* ─── CLI ─────────────────────────────────────────────────── */
+    .cli-section { background: #000; }
+
+    .cli-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1.8rem;
+      font-family: var(--font-m);
+      font-size: 0.78rem;
+      line-height: 2;
+      max-width: 650px;
+      overflow-x: auto;
+    }
+    .cli-block .prompt  { color: var(--red); }
+    .cli-block .cmd     { color: var(--white); }
+    .cli-block .flag    { color: var(--cyan); }
+    .cli-block .comment { color: var(--dim); font-style: italic; }
+    .cli-block .val     { color: var(--green); }
+
+    /* ─── Footer ──────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      font-size: 0.65rem;
+      color: var(--dim);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+    .footer-links a:hover { color: var(--white); }
+
+    .footer-copy {
+      font-size: 0.6rem;
+      color: var(--dim);
+      letter-spacing: 0.08em;
+    }
+
+    /* ─── Responsive ──────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .features-grid { grid-template-columns: 1fr; }
+      .download-grid { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 40px 1fr; gap: 1rem; }
+      .step-n { font-size: 1.3rem; padding-right: 0.8rem; }
+      .cta-group { flex-direction: column; align-items: center; }
+      .btn { width: 100%; max-width: 280px; justify-content: center; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0s !important; transition-duration: 0s !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hero -->
+  <section class="hero">
+    <video class="hero-video" autoplay muted loop playsinline>
+      <source src="assets/preview-bg.mp4" type="video/mp4">
+    </video>
+
+    <div class="hero-content">
+      <div class="hero-label">v1.2.0 — stable release</div>
+
+      <h1 class="hero-title">
+        <span class="glitch-hover" data-text="DATA">DATA</span><span class="glitch-hover red" data-text="MOSH">MOSH</span>
+        <span class="sub">Timeline Glitch Editor</span>
+      </h1>
+
+      <p class="hero-sub">
+        Drop <code>I-frames</code>, duplicate <code>P-frames</code>,
+        build glitch sequences. Free &amp; open source.
+      </p>
+
+      <div class="cta-group">
+        <a href="#download" class="btn btn-primary">
+          <svg viewBox="0 0 16 16"><path d="M8 12l-4.5-4.5 1.06-1.06L7.5 9.38V1h1v8.38l2.94-2.94 1.06 1.06L8 12zm-6 2h12v1H2v-1z"/></svg>
+          Download
+        </a>
+        <a href="https://github.com/willbearfruits/datamosh-gui" class="btn btn-ghost" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          Source
+        </a>
+      </div>
+
+      <div class="platforms"><span>&#9679;</span> linux · windows · macos</div>
+    </div>
+
+    <div class="scroll-hint">scroll<span class="bar"></span></div>
+  </section>
+
+  <div class="accent-line"></div>
+
+  <!-- Screenshot -->
+  <section class="preview-section">
+    <div class="container">
+      <div class="preview-frame">
+        <div class="preview-bar">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span style="margin-left:auto">datamosh-gui</span>
+        </div>
+        <img src="assets/ui-preview.png" alt="Datamosh GUI interface" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <div class="section-tag">// capabilities</div>
+      <h2 class="section-title">Built for controlled destruction</h2>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-num">01</div>
+          <h3>NLE Timeline</h3>
+          <p>Premiere-style timeline with zoom, scrub, and per-clip control. Drag to reorder, visualize frame density.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">02</div>
+          <h3>Live Preview</h3>
+          <p>See glitches in real time. Parameter changes trigger a debounced re-mosh with instant frame display.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">03</div>
+          <h3>Binary AVI Engine</h3>
+          <p>Operates directly on RIFF/AVI binary structure. No decoding, no re-encoding. Pure chunk-level manipulation.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">04</div>
+          <h3>Import &amp; Export</h3>
+          <p>Import MP4, MOV, MKV, WebM (auto-normalized to Xvid). Export the mosh as native AVI, or re-encoded MP4/MOV for easy sharing.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">05</div>
+          <h3>Per-Segment Controls</h3>
+          <p>Tune keep/duplicate/gap/keyframe-drop per timeline segment — the same clip can appear twice, moshed differently. Save sessions as <code>.dmosh</code> projects.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">06</div>
+          <h3>I-Frame Injection</h3>
+          <p>Insert custom I-frames between clips to control where motion vectors propagate. Seed corruption precisely.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- How it works -->
+  <section class="how-section">
+    <div class="container">
+      <div class="section-tag">// process</div>
+      <h2 class="section-title">How it works</h2>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-n"></div>
+          <div>
+            <h3>Import</h3>
+            <p>Drop any video file. It's normalized to <code>Xvid AVI</code> automatically.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n"></div>
+          <div>
+            <h3>Configure</h3>
+            <p>Set parameters per clip: frames to keep, P-frames to duplicate, gap, keyframe dropping.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n"></div>
+          <div>
+            <h3>Preview</h3>
+            <p>Watch the glitch evolve in real time. Binary rewrite + frame extraction in milliseconds.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n"></div>
+          <div>
+            <h3>Render</h3>
+            <p>Export as AVI, MP4, or MOV — multiple clips with different settings in one output. Save the session as a <code>.dmosh</code> project to reopen later.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="accent-line"></div>
+
+  <!-- Download -->
+  <section class="download-section" id="download">
+    <div class="container">
+      <div class="section-tag">// download v1.2.0</div>
+      <h2 class="section-title">Get Datamosh GUI</h2>
+
+      <div class="download-grid">
+        <div class="dl-card">
+          <div class="os">Linux</div>
+          <div class="arch">x86_64</div>
+          <div class="dl-links">
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/Datamosh-1.2.0-linux-x86_64.AppImage">AppImage <span class="ext">.appimage</span></a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/Datamosh-1.2.0-linux-installer.deb">Debian Package <span class="ext">.deb</span></a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/Datamosh-1.2.0-linux-portable.tar.gz">Archive <span class="ext">.tar.gz</span></a>
+          </div>
+        </div>
+        <div class="dl-card">
+          <div class="os">Windows</div>
+          <div class="arch">x86_64</div>
+          <div class="dl-links">
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/Datamosh-1.2.0-windows-installer.exe">Installer <span class="ext">.exe</span></a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/Datamosh-1.2.0-windows-portable.zip">Portable <span class="ext">.zip</span></a>
+          </div>
+        </div>
+        <div class="dl-card">
+          <div class="os">macOS</div>
+          <div class="arch">universal</div>
+          <div class="dl-links">
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/Datamosh-1.2.0-macos-installer.dmg">Disk Image <span class="ext">.dmg</span></a>
+            <a href="https://github.com/willbearfruits/datamosh-gui/releases/latest/download/Datamosh-1.2.0-macos-portable.zip">Archive <span class="ext">.zip</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- CLI -->
+  <section class="cli-section">
+    <div class="container">
+      <div class="section-tag">// cli</div>
+      <h2 class="section-title">Prefer the terminal?</h2>
+
+      <div class="cli-block">
+        <span class="comment"># clone + run</span><br>
+        <span class="prompt">$</span> <span class="cmd">git clone</span> <span class="val">https://github.com/willbearfruits/datamosh-gui.git</span><br>
+        <span class="prompt">$</span> <span class="cmd">cd</span> <span class="val">datamosh-gui</span><br>
+        <span class="prompt">$</span> <span class="cmd">pip install</span> <span class="flag">-r</span> <span class="val">requirements.txt</span><br>
+        <br>
+        <span class="comment"># launch gui</span><br>
+        <span class="prompt">$</span> <span class="cmd">python3</span> <span class="val">main.py</span><br>
+        <br>
+        <span class="comment"># or use the engine directly</span><br>
+        <span class="prompt">$</span> <span class="cmd">python3</span> <span class="val">mosh.py</span> <span class="val">input.avi</span> <span class="val">output.avi</span> <span class="flag">--keep-first</span> <span class="val">1</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-links">
+      <a href="https://github.com/willbearfruits/datamosh-gui" target="_blank" rel="noopener">github</a>
+      <a href="https://github.com/willbearfruits/datamosh-gui/releases" target="_blank" rel="noopener">releases</a>
+      <a href="https://github.com/willbearfruits/datamosh-gui/issues" target="_blank" rel="noopener">issues</a>
+      <a href="https://ko-fi.com/willbearfruits" target="_blank" rel="noopener">donate</a>
+    </div>
+    <div class="footer-copy">made with &#9632; by willbearfruits · free &amp; open source · gpl-3.0</div>
+  </footer>
+
+</body>
+</html>
